@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Scale, Rocket, ChevronDown, Sparkles } from "lucide-react";
+import { Shield, Scale, Rocket, ChevronDown, Sparkles, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiAllocateInvestment } from "@/lib/api";
 
 export default function NewInvestmentPage() {
   const [amount, setAmount] = useState("1,00,000");
@@ -13,6 +14,8 @@ export default function NewInvestmentPage() {
   const [planGenerated, setPlanGenerated] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState("Balanced");
   const [isExplanationOpen, setIsExplanationOpen] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [apiData, setApiData] = useState<any>(null);
 
   const formatAmount = (val: string) => {
     const raw = val.replace(/\D/g, "");
@@ -20,9 +23,24 @@ export default function NewInvestmentPage() {
     return parseInt(raw).toLocaleString('en-IN');
   };
 
-  const handleGenerate = () => {
-    setPlanGenerated(false);
-    setTimeout(() => setPlanGenerated(true), 800);
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    try {
+      const payload = {
+        amount: parseFloat(amount.replace(/,/g, "")) || 100000,
+        goal: priority.toLowerCase(),
+        horizon_years: parseInt(horizon.replace("Y", "")) || 3,
+        max_acceptable_loss_pct: loss
+      };
+      const result = await apiAllocateInvestment(payload);
+      setApiData(result);
+      setPlanGenerated(true);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to generate plan.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -103,9 +121,10 @@ export default function NewInvestmentPage() {
 
             <button 
               onClick={handleGenerate}
-              className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] mt-4"
+              disabled={isGenerating}
+              className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] mt-4 disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Generate Plan
+              {isGenerating ? <><Activity className="w-5 h-5 animate-spin" /> Generating...</> : "Generate Plan"}
             </button>
           </div>
         </div>

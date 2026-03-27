@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Brain, Activity, Shield, TrendingUp, Sunset, GraduationCap, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiSubmitQuestionnaire } from "@/lib/api";
+import { useFinStore } from "@/store/useFinStore";
 
 const STEPS = ["Goals", "Behavior", "Knowledge", "Portfolio"];
 
@@ -12,6 +14,8 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const setRiskProfile = useFinStore((state) => state.setRiskProfile);
+  const riskProfile = useFinStore((state) => state.riskProfile);
 
   // Form State
   const [age, setAge] = useState(30);
@@ -21,15 +25,44 @@ export default function OnboardingPage() {
   const [behavior, setBehavior] = useState("");
   const [experience, setExperience] = useState("");
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep((prev) => prev + 1);
     } else {
       setIsSubmitting(true);
-      setTimeout(() => {
-        setIsSubmitting(false);
+      try {
+        const payload = {
+          stage1: {
+            age,
+            income_range: income,
+            investment_goal: goal || "wealth_growth",
+            time_horizon_years: parseInt(horizon.replace(/\D/g, "")) || 5
+          },
+          stage2: {
+            loss_reaction: behavior || "hold",
+            market_check_frequency: "weekly",
+            past_investment_experience: "none"
+          },
+          stage3_beginner: {
+            savings_habit: "regular",
+            emergency_fund_months: 6,
+            loan_obligations: "low"
+          }
+        };
+        const response: any = await apiSubmitQuestionnaire(payload);
+        
+        setRiskProfile({
+          risk_level: response.investor_type,
+          score: Math.round(response.risk_score)
+        });
+        
         setShowResult(true);
-      }, 1500);
+      } catch (error) {
+        console.error("Error submitting questionnaire:", error);
+        alert("Failed to save profile. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -53,11 +86,11 @@ export default function OnboardingPage() {
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-4xl font-mono font-bold text-danger-accent">67</span>
+              <span className="text-4xl font-mono font-bold text-danger-accent">{riskProfile?.score || 67}</span>
               <span className="text-xs text-text-muted mt-1 uppercase tracking-widest">/ 100</span>
             </div>
           </div>
-          <p className="text-xl font-medium text-danger-accent mb-8">Moderate-Aggressive</p>
+          <p className="text-xl font-medium text-danger-accent mb-8">{riskProfile?.risk_level || "Moderate"}</p>
           
           <div className="flex flex-wrap justify-center gap-3 mb-10">
             <span className="px-4 py-2 rounded-full bg-blue-600/20 text-blue-400 text-sm font-medium border border-blue-600/30">

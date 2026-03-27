@@ -5,12 +5,8 @@ import { Lock, TrendingDown, Activity, RefreshCcw, AlertTriangle } from "lucide-
 import { cn } from "@/lib/utils";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
-const monteCarloData = Array.from({ length: 60 }).map((_, i) => ({
-  month: i,
-  p5: 483200 * Math.pow(0.99, i) * (0.8 + Math.random() * 0.1), // Worst case path
-  p50: 483200 * Math.pow(1.01, i), // Expected case path
-  p95: 483200 * Math.pow(1.02, i) * (1.1 + Math.random() * 0.1), // Best case path
-}));
+import { useEffect } from "react";
+import { apiMonteCarloSimulation } from "@/lib/api";
 
 const customFormatter = (value: any) => `₹${Math.round(Number(value)).toLocaleString('en-IN')}`;
 
@@ -19,6 +15,36 @@ export default function StressTestPage() {
   const [isPro, setIsPro] = useState(false); // Demo toggle
   const [niftyDrop, setNiftyDrop] = useState(-15);
   const [usdInrRise, setUsdInrRise] = useState(5);
+  const [monteCarloData, setMonteCarloData] = useState<any[]>([]);
+  const [simulationStats, setSimulationStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "Monte Carlo" && monteCarloData.length === 0) {
+      setIsLoading(true);
+      apiMonteCarloSimulation({ portfolio_id: 1, num_simulations: 1000, horizon_days: 60 })
+        .then((res: any) => {
+          if (res.monte_carlo) {
+            const data = res.monte_carlo;
+            const mapped = data.percentile_50th.map((p50: number, i: number) => ({
+              month: i,
+              p5: data.percentile_5th[i],
+              p50: p50,
+              p95: data.percentile_95th[i]
+            }));
+            setMonteCarloData(mapped);
+            setSimulationStats({
+              maxDrawdown: data.max_drawdown,
+              probRuin: data.probability_of_ruin
+            });
+          }
+        })
+        .catch(console.error)
+        .finally(() => setIsLoading(false));
+    }
+  }, [activeTab]);
+
+  // Replaced by above state declarations
 
   const tabs = ["Monte Carlo", "2008 Global Crisis", "2020 COVID Crash", "2022 Rate Hike", "Custom Shock"];
   const shockImpact = 483200 * (niftyDrop / 100) * 1.2 + 483200 * (usdInrRise / 100) * -0.5; // Dummy formula
@@ -87,27 +113,34 @@ export default function StressTestPage() {
               </div>
 
               <div className="w-full h-[300px] mb-8">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monteCarloData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorP50" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1E2D45" vertical={false} />
-                    <XAxis dataKey="month" stroke="#475569" tick={{fill: '#94A3B8', fontSize: 12}} />
-                    <YAxis stroke="#475569" tick={{fill: '#94A3B8', fontSize: 12}} tickFormatter={(val) => `₹${(val/1000).toFixed(0)}k`} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1A2235', borderColor: '#3B82F6', borderRadius: '12px', color: '#F1F5F9' }}
-                      formatter={customFormatter}
-                      labelFormatter={(label) => `Month ${label}`}
-                    />
-                    <Area type="monotone" dataKey="p95" stroke="#10B981" strokeDasharray="5 5" fill="none" name="Best Case (P95)" />
-                    <Area type="monotone" dataKey="p50" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorP50)" name="Expected (P50)" />
-                    <Area type="monotone" dataKey="p5" stroke="#EF4444" strokeDasharray="5 5" fill="none" name="Worst Case (P5)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {isLoading ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
+                    <Activity className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+                    Running 10,000 simulations...
+                  </div>
+                ) : monteCarloData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={monteCarloData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorP50" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1E2D45" vertical={false} />
+                      <XAxis dataKey="month" stroke="#475569" tick={{fill: '#94A3B8', fontSize: 12}} />
+                      <YAxis stroke="#475569" tick={{fill: '#94A3B8', fontSize: 12}} tickFormatter={(val) => `₹${(val/1000).toFixed(0)}k`} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#1A2235', borderColor: '#3B82F6', borderRadius: '12px', color: '#F1F5F9' }}
+                        formatter={customFormatter}
+                        labelFormatter={(label) => `Month ${label}`}
+                      />
+                      <Area type="monotone" dataKey="p95" stroke="#10B981" strokeDasharray="5 5" fill="none" name="Best Case (P95)" />
+                      <Area type="monotone" dataKey="p50" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorP50)" name="Expected (P50)" />
+                      <Area type="monotone" dataKey="p5" stroke="#EF4444" strokeDasharray="5 5" fill="none" name="Worst Case (P5)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-auto">

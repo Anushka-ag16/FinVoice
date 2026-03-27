@@ -1,13 +1,64 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Bell, ArrowUpRight, ArrowDownRight, Activity, Calendar, ChevronDown, AlertTriangle } from "lucide-react";
 import { PortfolioDonut } from "@/components/dashboard/PortfolioDonut";
+import { apiAnalyzePortfolio, apiGetDrift, apiImportPortfolio } from "@/lib/api";
+import { useFinStore } from "@/store/useFinStore";
 
 export default function DashboardPage() {
+  const user = useFinStore(state => state.user);
+  const riskProfile = useFinStore(state => state.riskProfile);
+  const { portfolioAnalysis, setPortfolioData } = useFinStore();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        let analysis: any;
+        let driftData: any;
+        
+        try {
+          analysis = await apiAnalyzePortfolio(1);
+          driftData = await apiGetDrift(1);
+        } catch (err: any) {
+          // If no portfolio exists (e.g., user skipped onboarding step 4), create a demo one automatically
+          if (err.message?.includes("Portfolio not found") || err.message?.includes("404")) {
+            await apiImportPortfolio({
+              portfolio_name: "Demo Portfolio",
+              holdings: [
+                { symbol: "RELIANCE", quantity: 45, buy_price: 2450.00 },
+                { symbol: "HDFCBANK", quantity: 50, buy_price: 1500.00 },
+                { symbol: "LIQUIDBEES", quantity: 38, buy_price: 1000.00 }
+              ]
+            });
+            // Retry fetch after creation
+            analysis = await apiAnalyzePortfolio(1);
+            driftData = await apiGetDrift(1);
+          } else {
+            throw err;
+          }
+        }
+        
+        setPortfolioData([], analysis);
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [setPortfolioData]);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-white"><Activity className="w-8 h-8 animate-spin text-blue-500" /></div>;
+  }
   return (
     <div className="flex flex-col gap-8 pb-20 md:pb-8 animate-in fade-in duration-500">
       {/* Top Greeting Bar */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">
-          Good evening, Arjun 👋
+          Good evening, {user?.first_name || "Investor"} 👋
         </h1>
         <div className="flex items-center gap-4">
           <button className="hidden sm:inline-flex px-4 py-2 rounded-full bg-warning-accent/10 border border-warning-accent/20 text-warning-accent text-sm font-semibold hover:bg-warning-accent/20 transition-colors shadow-[0_0_10px_rgba(245,158,11,0.15)]">
@@ -17,8 +68,8 @@ export default function DashboardPage() {
             <Bell className="w-5 h-5" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-danger-accent animate-pulse" />
           </button>
-          <div className="w-10 h-10 rounded-full bg-slate-700 border border-border-subtle flex items-center justify-center text-white font-medium">
-            AR
+          <div className="w-10 h-10 rounded-full bg-slate-700 border border-border-subtle flex items-center justify-center text-white font-medium uppercase">
+            {user?.first_name?.charAt(0) || "U"}{user?.last_name?.charAt(0) || ""}
           </div>
         </div>
       </div>
@@ -39,9 +90,9 @@ export default function DashboardPage() {
           <span className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Risk Score</span>
           <div>
             <div className="text-2xl md:text-3xl font-bold font-mono text-warning-accent mb-1 flex items-end gap-1">
-              67<span className="text-sm text-text-muted pb-1">/100</span>
+              {riskProfile?.score || 67}<span className="text-sm text-text-muted pb-1">/100</span>
             </div>
-            <div className="text-sm font-medium text-warning-accent">Moderate-Aggressive</div>
+            <div className="text-sm font-medium text-warning-accent">{riskProfile?.risk_level || "Moderate"}</div>
           </div>
         </div>
 

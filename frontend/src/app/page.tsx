@@ -21,7 +21,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link 
-              href="/onboarding" 
+              href="/auth" 
               className="px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-lg flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]"
             >
               Get Started Free <ArrowRight className="w-5 h-5" />
@@ -133,7 +133,7 @@ export default function LandingPage() {
               <div className="flex items-center gap-3 opacity-40"><X className="w-5 h-5 text-text-muted" /> <span className="text-text-muted">Voice Advisory</span></div>
             </div>
             
-            <Link href="/onboarding" className="w-full py-3 rounded-xl border border-border-subtle text-white font-medium text-center hover:bg-slate-700 transition-colors">
+            <Link href="/auth" className="w-full py-3 rounded-xl border border-border-subtle text-white font-medium text-center hover:bg-slate-700 transition-colors">
               Start Free
             </Link>
           </div>
