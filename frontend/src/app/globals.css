@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* FinVoice Custom Colors */
+  --color-navy: #090E1A;
+  --color-slate-800: #111827;
+  --color-slate-700: #1A2235;
+  --color-border-subtle: #1E2D45;
+
+  --color-brand-blue: #3B82F6;
+  --color-brand-glow: rgba(59, 130, 246, 0.15);
+  --color-emerald-accent: #10B981;
+  --color-danger-accent: #EF4444;
+  --color-warning-accent: #F59E0B;
+  --color-gold-accent: #FBBF24;
+
+  --color-text-primary: #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #475569;
+}
+
+@layer base {
+  :root {
+    --background: #090E1A;
+    --foreground: #F1F5F9;
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Number counter utility for smooth incrementing later */
+@property --num {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+
+/* Animated Gradient Text Utility */
+.text-gradient {
+  background: linear-gradient(to right, var(--color-brand-blue), var(--color-emerald-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
