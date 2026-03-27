@@ -1,0 +1,392 @@
+
+FinVoice
+Detailed Technical Implementation Plan
+Team HACKuna Matata  •  VIT Chennai  •  FinTech Domain
+AI-Powered Portfolio Management for Every Indian Investor
+
+
+
+1.1  Vision
+FinVoice is a three-tier AI-powered financial advisor — built for the complete beginner, intermediate investor, and seasoned trader alike. It combines Modern Portfolio Theory, advanced ML predictions, voice interaction, and explainable AI to deliver institutional-grade portfolio management at zero advisory cost for the free tier.
+
+1.2  Investor Segments & Adaptive Questionnaire
+The onboarding questionnaire dynamically adapts based on detected knowledge level. It asks progressively deeper questions and classifies users into one of three segments:
+
+
+Adaptive Questionnaire Flow
+Stage 1 (Universal): Age, income range, investment goal (wealth growth / retirement / education / emergency), time horizon
+Stage 2 (Behavioral): Simulated loss scenario — 'If your portfolio dropped 20% tomorrow, you would...' (options reveal emotional bias)
+Stage 3 (Conditional on answers): Experienced path asks about derivatives, sector bets, leverage; Beginner path asks about savings habits only
+Stage 4 (Portfolio Input): Optional — input current holdings for instant analysis
+Output: Risk Score (0-100), Investor Type label, Behavioral Bias tag (Loss Averse / Overconfident / Balanced)
+
+IMPORTANT: Risk score is never static. It is recomputed after every major market event + on a 90-day questionnaire refresh cycle. Behavioral signals from app usage (panic sell attempts, frequent checking) also adjust the score dynamically.
+
+1.3  Free vs. Paid Tier Breakdown
+
+
+
+
+2.1  Market Data — Equities (Indian)
+
+
+2.2  Market Data — Other Asset Classes
+
+
+2.3  Macro / Alternate Data
+
+
+Data Pipeline Recommendation: Build a unified ingestion service that pulls all sources daily at market close (3:45 PM IST) and stores into TimescaleDB (time-series extension of PostgreSQL). Raw data lake in parquet format on local disk or S3-compatible MinIO. This gives you 20+ years of data for backtesting once you bulk-download historical files.
+
+
+
+3.1  Portfolio Optimization Layer
+3.1.1  Base: Modern Portfolio Theory (MPT) + Extensions
+PyPortfolioOpt — efficient frontier, max Sharpe, min volatility, Ledoit-Wolf covariance shrinkage
+Black-Litterman Model — combine market equilibrium returns with your model's views (investor-specific)
+Risk Parity — equal risk contribution per asset, better than equal-weight for downside protection
+CVaR (Conditional Value at Risk) optimization — tail-risk aware, crucial for Indian market volatility
+
+3.1.2  Return Prediction Models (This is the ML core)
+These models predict expected returns per asset, which feed into the optimizer as 'views':
+
+
+3.1.3  Ensemble & Signal Aggregation
+Combine LSTM, TFT, XGBoost predictions using a meta-learner (Stacking Regressor)
+Weight each model's signal by its recent Sharpe contribution (rolling 30-day evaluation)
+Final output: Expected Return vector + Covariance Matrix → fed into PyPortfolioOpt CVaR optimizer
+Confidence intervals from model ensemble determine position sizing (low confidence = smaller position)
+
+3.2  Holdings Analyzer
+Input: User's current portfolio (asset, quantity, buy price)
+Exposure Engine: Classify each holding → sector, asset class, geography, market cap tier
+Concentration Risk: Flag any single stock > 20% of portfolio, any sector > 35%
+Correlation Analysis: Compute pairwise correlations from 1-year rolling window. Flag highly correlated pairs (r > 0.75) as redundant diversification
+Beta Calculation: Portfolio beta vs Nifty 50. If beta > 1.3 for 'Moderate' risk user → alert
+Rupee-Level Rebalancing: LP solver (scipy.optimize or PuLP) minimizes trades needed to reach target allocation while minimizing capital gains tax events
+
+3.3  New Money Advisor
+When user says 'I want to invest ₹1L', the flow is:
+
+Input Collection: Maximum acceptable loss (worst-case), goal (growth/income/preservation), horizon, tax bracket
+Existing Risk Profile loaded from DB — no re-questionnaire unless profile is stale (> 90 days)
+ML Engine computes expected return / risk for each candidate asset based on current regime
+Optimizer runs 3 scenarios: Conservative / Balanced / Aggressive — user sees all 3 with projected returns
+Output: Exact rupee allocation — e.g., ₹40K Nifty50 ETF, ₹25K SGB, ₹20K PPFAS Flexi, ₹15K FD
+Explainable AI block explains WHY each allocation was chosen (see Section 7)
+
+3.4  Crash Simulation / Stress Testing
+Monte Carlo Simulation: 10,000 portfolio paths using Cholesky decomposition of covariance matrix. Output: 5th/50th/95th percentile portfolio value at each time step
+Historical Scenario Replay: Apply actual return series from 2008 Global Crisis, 2020 COVID crash, 2022 rate hike cycle to user's current portfolio
+Custom Shocks: User can define 'what if Nifty drops 30%' — system computes portfolio impact using beta + correlation matrix
+Output: Maximum Drawdown, Time to Recovery, Probability of Ruin (portfolio < 50% of initial)
+
+3.5  Daily Portfolio Drift Detection
+Every night at 11 PM IST: Pull latest prices, recompute portfolio allocation %
+Compare actual allocation vs target allocation (from risk profile)
+Drift Threshold: If any asset class deviates > 5% from target, generate rebalancing alert
+Severity Levels: INFO (1-3% drift) → WARN (3-5% drift) → ALERT (>5% drift)
+Push notification for paid users; weekly digest email for free users
+This is the most important retention feature — it keeps users engaged and prevents the portfolio from silently drifting into a risk zone the user never agreed to.
+
+
+
+4.1  Architecture
+Broker Integration: Angel One SmartAPI (free for retail, supports Python SDK) — order placement, portfolio fetch, live feeds
+Alternative: Zerodha Kite Connect (₹2000/month) for higher volume. Paper trading uses simulated broker with real-time prices
+Strategy Execution: Apache Kafka or Redis Streams for signal queue. FastAPI workers consume signals and place orders
+Risk Controls: Max order size cap, daily loss limit (auto-halt), no naked short selling
+
+4.2  Trading Strategies (Implemented as Plugins)
+
+4.3  Paper Trading
+Fully simulated environment with real-time NSE/BSE prices via Angel One feed
+Virtual wallet: ₹10L starting capital (user-configurable)
+Track virtual P&L, Sharpe ratio, max drawdown over paper trading period
+Graduate Mode: After 30 days of paper trading with Sharpe > 0.5, user gets a badge and prompt to go live
+
+
+
+5.1  Voice Stack
+
+5.2  Conversation Design
+Session Context: Every conversation preloaded with user's risk profile, current portfolio, and recent alerts
+Intent Classification: LLM classifier routes to correct backend tool (portfolio-check / new-investment / explain-recommendation / crash-simulation)
+Tool Calling: LLM uses function calling to invoke FastAPI endpoints and gets structured data back
+Language Support: Auto-detect Hindi vs English. Mixed Hinglish handled gracefully
+Guardrails: No specific buy/sell advice without SEBI-compliant disclaimer. Explicit refusal for intraday speculation queries on free tier
+
+5.3  Example Voice Interactions
+User: 'Mera portfolio kaisa hai?' → System fetches holdings, computes drift, returns: 'Aapke portfolio mein 72% equity hai. Aapke risk profile ke liye yeh thoda zyada hai. Maine suggest kiya hai ki aap ₹3,000 bonds mein shift karein.'
+
+User: 'I want to invest 50,000 rupees for 3 years.' → System calls New Money Advisor endpoint → Returns 3 allocation scenarios with projected values → Reads out the Balanced option → Offers to explain in detail or send to app.
+
+
+
+6.1  Why XAI Matters for FinVoice
+Indian retail investors are skeptical of black-box advice. SEBI regulations also increasingly require advisors to disclose reasoning. Every action taken by FinVoice must be accompanied by a plain-language explanation. This is not a post-hoc add-on — it is architecturally central.
+
+6.2  XAI Techniques Used
+
+6.3  Explainability Output Formats
+Short (Free): One-sentence reason — 'Gold allocation increased due to high market volatility'
+Medium (Paid): Paragraph with 3-4 factors — suitable for app notification
+Full Report (Paid): PDF report with charts showing SHAP waterfall plots, factor attribution bars, and scenario comparison — downloadable monthly
+
+
+
+7.1  Technology Stack
+
+
+7.2  Data Flow Architecture
+The system has three primary data flows:
+
+Ingestion Flow (Nightly): Airflow DAG → Pull NSE/BSE/RBI/MF data → Clean & validate → Store raw in TimescaleDB → Compute features → Store feature store
+Inference Flow (Real-time): User request → FastAPI → Load user profile from DB → Call ML microservice → Get predictions + explanations → Return JSON to frontend
+Training Flow (Weekly): Celery beat trigger → Load last N days from feature store → Retrain LSTM/XGB models → Validate on holdout set → If better than current, deploy automatically → Log to MLflow
+
+
+
+Phase 1 — Data Foundation & Core Engine (Weeks 1–4)
+
+Phase 2 — Advanced ML & Frontend (Weeks 5–8)
+
+Phase 3 — Voice, Trading & Refinement (Weeks 9–12)
+
+Phase 4 — Post-Launch Additions (Months 4–6)
+Temporal Fusion Transformer: Replace LSTM as primary model after sufficient training data (6 months+)
+Vernacular expansion: Tamil, Telugu, Bengali voice support
+Tax-Loss Harvesting Engine: Identify offsetting sell opportunities before March 31 each year
+Family Portfolio Mode: Aggregate multiple accounts under one household view
+SEBI RIA Compliance Mode: Full audit trail, disclaimer engine, advice disclaimer watermarks
+B2B API: White-label the engine for NBFCs and small brokers
+
+
+
+9.1  Training Data Preparation
+Download 20 years of OHLCV for NIFTY500 stocks via nsepy bulk download (~2 GB)
+Download complete MF NAV history from mfapi.in for top 500 funds
+Download macro data: RBI rates, CPI, FII/DII flows, VIX India from NSE
+Label generation: Forward returns (1-day, 5-day, 21-day) computed from adjusted close prices
+Train/Val/Test split: 2003-2020 train, 2021 validation, 2022-2024 test (walk-forward)
+
+9.2  Feature Engineering Pipeline
+
+9.3  Model Evaluation Metrics
+IC (Information Coefficient): Spearman correlation between predicted and actual forward returns. Target: IC > 0.05 consistently
+ICIR (IC Information Ratio): IC / std(IC). Target: ICIR > 0.5 (signal is stable, not noisy)
+Sharpe Ratio of paper portfolio: Target > 1.0 on 2022-2024 out-of-sample
+Maximum Drawdown on test period: Must be below user's stated risk tolerance
+Calibration: Predicted probability of loss should match actual frequency (reliability diagram)
+
+
+
+10.1  Security Requirements
+All financial data encrypted at rest (AES-256) and in transit (TLS 1.3)
+PAN/Aadhaar never stored — only hashed identifiers for KYC status
+Portfolio data isolated per user via PostgreSQL Row-Level Security
+Broker API tokens stored in HashiCorp Vault (self-hosted free) or AWS Secrets Manager
+Rate limiting on all API endpoints (slowapi library for FastAPI)
+OWASP Top 10 audit before launch — especially SQL injection, JWT validation, CORS
+
+10.2  SEBI Compliance Notes
+FinVoice is an investment tool, NOT a registered Investment Advisor (RIA) — all advice must carry disclaimer
+Disclaimer auto-appended to every recommendation: 'FinVoice is a decision-support tool. Invest at your own risk. Consult a SEBI-registered advisor for personalized advice.'
+No guaranteed return claims. All projected returns show range with confidence intervals, not point estimates
+Algo trading: Users must connect their own broker account. FinVoice sends signals only — execution liability stays with user
+
+10.3  Ethical AI
+No dark patterns in subscription upsell — free tier genuinely useful, paid tier genuinely better
+Model bias audit: Ensure recommendations are not biased toward large-cap stocks simply because more data exists
+Behavioral nudge limits: Do not use psychological pressure to encourage more trading (bad for users, bad for long-term trust)
+
+
+
+11.1  Development Costs (First 3 Months)
+
+11.2  Scale-Up Costs (1,000+ users)
+AWS EC2 t3.medium (backend): ~₹3,500/month
+AWS RDS PostgreSQL: ~₹2,000/month
+ML Inference (CPU): ~₹2,000/month — ONNX models are fast on CPU
+Vapi.ai at scale: ~$0.05/min × expected usage
+Revenue model: Free forever + ₹299/month paid tier → Break-even at ~50 paid users
+
+
+
+12.1  Day 1 Setup Checklist
+Run: pip install nsepy yfinance mfapi pyportfolioopt shap lightgbm torch pandas numpy scipy
+Download: 5 years of NIFTY50 + top 50 stocks using yfinance. Save to parquet. Verify data quality.
+Setup: PostgreSQL + TimescaleDB locally via Docker. Create schema: assets, prices, features, users, portfolios, recommendations.
+Train: Baseline XGBoost model on 2018-2022 data. Evaluate IC on 2023. Iterate on features.
+Build: FastAPI skeleton with /risk-profile, /analyze-portfolio, /new-investment endpoints. Test with mock data.
+Register: Angel One SmartAPI developer account (free). Get API keys. Test paper order placement in sandbox.
+Create: Vapi.ai account (free). Build a simple assistant that calls your /analyze-portfolio endpoint. Test with your own portfolio.
+
+The single most important thing to do first: Get the data pipeline running and verify data quality. Every ML model and every product feature depends on clean, reliable, historical price and fundamental data. Spend Week 1 entirely on this — it will save weeks of debugging later.
+
+FinVoice — Built with ML, Powered by Data, Designed for Bharat
+Version
+1.0 — Full Architecture	Target Market
+140M+ Retail Investors in India	
+
+1.  PRODUCT OVERVIEW & TIER STRUCTURE	
+
+Segment	Profile	What They Need	
+Beginner	First-time investor, low financial literacy, small corpus (< ₹50K)	Guided asset class education, simple allocation, safe defaults, voice explanations in vernacular	
+Intermediate	Has mutual funds/stocks, moderate literacy, corpus ₹50K–₹10L	Holdings analysis, rebalancing nudges, risk-adjusted returns, basic crash simulation	
+Experienced	Active trader, multiple asset classes, corpus > ₹10L	Full ML portfolio optimizer, algo/paper trading, advanced stress testing, API-level access	
+
+Feature	Free Tier	Paid Tier	
+Risk Assessment	Full questionnaire, risk score, investor type	Same + dynamic behavioral re-scoring	
+Portfolio Summary	Asset class breakdown (equity/bond/gold/cash %)	Full stock-level analysis with exact rupee rebalancing	
+Rebalancing Advice	General direction (e.g., 'reduce equity exposure')	Exact: 'Sell ₹1,200 of RELIANCE, Buy ₹1,200 SGB'	
+Stock/Fund Suggestions	Asset class type (e.g., 'large-cap equity')	Specific tickers with ML-ranked recommendations	
+New Money Advisor	Basic allocation splits	Full ML-optimized allocation with scenario comparison	
+Crash Simulation	Not available	Monte Carlo + historical crash replay (2008/2020/2022)	
+Auto Portfolio Check	Weekly summary email	Daily automated drift detection + push notification	
+Algo / Paper Trading	Not available	Full algo trading engine + paper trading sandbox	
+Voice Agent	Basic Q&A	Full advisory conversation + call-in via phone	
+Explainable AI	Simple reasons	Full factor attribution report	
+API Access	Not available	REST API for portfolio data	
+
+2.  DATA SOURCES  (100% Free & Open)	
+
+Source / API	Details	
+NSE India Unofficial API	github.com/nsepy/nsepy — Python lib for historical OHLCV, F&O data, indices. Free, no key needed.	
+BSE India	api.bseindia.com/BseIndiaAPI — corporate actions, historical prices. Free JSON endpoints.	
+Yahoo Finance (yfinance)	pip install yfinance — global + Indian stocks via .NS/.BO suffix. Completely free.	
+Jugaad Finance	jugaad-data library — NSE/BSE historical data, supports bulk download. Free.	
+MFAPI.in	mfapi.in — complete NAV history for 10,000+ Indian mutual funds. Free REST API, no auth.	
+RBI Data Warehouse	dbie.rbi.org.in — G-Sec yields, repo rates, CPI, WPI. Free CSV/JSON download.	
+
+Asset Class / Source	Details	
+Gold (MCX)	gold.org/goldhub/data — World Gold Council historical prices. Also mcxindia.com public data.	
+Silver / Commodities	investing.com historical export (free) + stooq.com bulk CSV download (free).	
+Real Estate / REITs	NSE-listed REIT data via nsepy. Underlying property index from NHB Residex (free download).	
+Nifty/Sensex Indices	nsepy + Yahoo Finance — complete index history since inception.	
+Currency (USD/INR etc.)	RBI reference rates (free) + yahoofinance .=X pairs.	
+Crypto (optional tier)	CoinGecko API — 100% free, no key needed, 365-day+ history for 10,000+ coins.	
+US Markets (for NRI users)	yfinance without suffix — NASDAQ, NYSE, ETFs. Free.	
+Fixed Deposits / Debt	RBI WALR data + bank rate scraping (selenium/requests). Rates change infrequently.	
+
+Source	Details	
+FRED (Federal Reserve)	fred.stlouisfed.org/docs/api — global macro indicators, DXY, VIX, US rates. Free API key.	
+World Bank Open Data	data.worldbank.org — GDP growth, inflation, FDI. Free REST API.	
+MCA / SEBI Filings	SEBI EDGAR-equivalent — quarterly results, shareholding patterns. Free.	
+Screener.in	Unofficial scraping allowed — PE ratios, financial ratios for 5,000+ Indian cos.	
+Tickertape (unofficial)	Financial ratios and analyst targets. Scrapeable.	
+Google Trends	pytrends — proxy for retail investor sentiment around tickers. Free.	
+Twitter/Reddit Sentiment	snscrape (no API key) for Indian finance subreddits (r/IndiaInvestments) + Twitter cashtags.	
+News (sentiment)	newsapi.org — 100 req/day free. MediaStack free tier. For NLP sentiment scoring.	
+
+3.  ML / AI MODELS — PORTFOLIO ENGINE	
+
+Model	Purpose & Details	
+LSTM (Long Short-Term Memory)	Primary time-series predictor. Input: OHLCV + macro features (30-day window). Output: 1-day and 5-day return probability distribution. Train with PyTorch or TensorFlow. One model per asset class (not per stock — use embeddings).	
+Temporal Fusion Transformer (TFT)	State-of-the-art for multi-horizon forecasting. Handles known future inputs (earnings dates, RBI meetings) + past observations. Use Darts library or PyTorch Forecasting.	
+XGBoost / LightGBM	Tabular features: RSI, MACD, Bollinger Bands, PE ratio, promoter holding %, FII/DII flows. Faster to train, great for feature importance (used in Explainable AI).	
+Prophet (Meta)	Trend + seasonality decomposition per stock. Useful for detecting structural breaks and adding seasonality features to other models.	
+Random Forest Regressor	Ensemble baseline. Predicts relative return rank within sector — used for stock screening within a recommended category.	
+GARCH / EGARCH	Volatility modeling — predict next-period volatility per asset. Used for dynamic position sizing and crash probability estimation.	
+Gaussian Mixture Model (GMM)	Regime detection — classify current market into Bull / Bear / Sideways / High-Volatility. Allocation shifts based on regime. Scikit-learn.	
+Sentiment NLP (FinBERT)	Fine-tuned BERT for financial text. Score news headlines and social media per stock. Hugging Face — free model weights. Add sentiment score as feature to LSTM/XGB.	
+Correlation Graph (GCN)	Graph Convolutional Network on stock correlation matrix. Captures sector-level contagion risk — e.g., if HDFC drops, what else is at risk? PyTorch Geometric.	
+
+4.  ALGO TRADING & PAPER TRADING ENGINE  (Paid)	
+
+Strategy	Description	
+Momentum Rebalancing	Monthly: Buy top-performing assets, sell bottom performers within allowed allocation bands	
+Mean Reversion	When a stock drops > 2 SD from 20-day mean and fundamentals are intact, trigger buy signal	
+ML Signal Execution	Direct execution of LSTM/TFT predicted signals when confidence > threshold (user-configurable)	
+SIP Automation	Auto-invest fixed amount on user-defined date into target funds/ETFs — no ML needed here	
+Stop-Loss Management	Dynamic trailing stop-loss: tightens as profit grows, loosens in high-volatility regimes	
+
+5.  VOICE AGENT & CONVERSATIONAL AI	
+
+Component	Technology & Rationale	
+Voice Call Interface	Vapi.ai — managed voice AI platform. Handles ASR + TTS + LLM orchestration. Free tier: 1,000 mins/month. Production: ~$0.05/min.	
+Telephony	Twilio — phone number provisioning, SIP trunking. ₹1/min for Indian calls. Users can call a dedicated number to reach FinVoice.	
+ASR (Speech-to-Text)	Whisper (OpenAI) via Vapi, or self-hosted whisper.cpp for cost savings. Supports Hindi + English.	
+TTS (Text-to-Speech)	ElevenLabs (via Vapi) for natural voice — or Google TTS for cost optimization. Support for Hindi/Tamil/Telugu voices.	
+LLM (Conversation)	Gemini 1.5 Flash via Google AI Studio (free tier: 15 req/min) OR Claude claude-haiku-4-5-20251001 for advisory conversations. Context window holds full portfolio state.	
+Chat Interface	Web + Mobile (Next.js PWA). Socket.io for real-time streaming responses.	
+
+6.  EXPLAINABLE AI (XAI) LAYER	
+
+Technique	Where Applied	
+SHAP (SHapley Additive Explanations)	For XGBoost/LightGBM predictions — shows which features (e.g., RSI, FII flow, PE ratio) drove a stock's predicted return up or down. shap Python library.	
+LIME (Local Interpretable Model-agnostic)	For LSTM predictions — perturbs input to understand which recent price events most influenced the forecast.	
+Attention Visualization (TFT)	Temporal Fusion Transformer has built-in attention weights — shows which time steps were most important for the prediction.	
+Factor Attribution	Decompose portfolio return into: market beta, sector tilt, individual stock alpha, and unexplained noise. Barra-style attribution.	
+Decision Tree Surrogate	Train a shallow decision tree to mimic the ML model's decisions on a local neighborhood — produces if-then rules readable to users.	
+Natural Language Generation (NLG)	LLM converts SHAP values + factor attribution into a paragraph: 'We increased your gold allocation because FII outflows and rising US yields suggest equity headwinds over the next 30 days.'	
+
+7.  COMPLETE SYSTEM ARCHITECTURE	
+
+Layer	Technologies	
+Frontend	Next.js 14 (App Router) + TypeScript + Tailwind CSS. PWA for mobile. React Query for server state.	
+Backend API	FastAPI (Python) — async, OpenAPI auto-docs. Uvicorn + Gunicorn workers.	
+ML Service	Separate FastAPI microservice for inference. PyTorch models served via TorchServe or simple REST. Celery for async training jobs.	
+Data Pipeline	Apache Airflow DAGs — daily ingestion, feature engineering, model retraining triggers.	
+Database	PostgreSQL 16 + TimescaleDB extension for time-series. Redis for caching and task queue. SQLAlchemy ORM.	
+Auth	Supabase Auth (free tier) — JWT, Google OAuth. Row-Level Security for multi-tenant data isolation.	
+Infra (Dev)	Docker Compose — all services containerized. Runs locally on any laptop.	
+Infra (Prod)	Railway.app or Render.com — free tier sufficient for MVP. Upgrade to AWS EC2 + RDS post-validation.	
+ML Training	Google Colab Pro (₹1,000/month) for GPU training. Models exported to ONNX for fast CPU inference in production.	
+Voice	Vapi.ai + Twilio (as described in Section 5)	
+Monitoring	Grafana + Prometheus for API metrics. MLflow for model experiment tracking (free, self-hosted).	
+
+8.  PHASED IMPLEMENTATION ROADMAP	
+
+Week	Task	Deliverable	
+Week 1	Data ingestion setup: nsepy, yfinance, MFAPI.in. Store 10 years of NIFTY50 + top 100 stocks + MF NAVs in TimescaleDB.	Running Airflow pipeline, filled DB	
+Week 1	Feature engineering: compute RSI, MACD, Bollinger Bands, rolling returns, beta, FII/DII flows.	Feature store table with 50+ features per asset	
+Week 2	Train baseline XGBoost return predictor. Validate on 2023 data. Target: IC (Information Coefficient) > 0.05.	Baseline ML model, MLflow experiment logged	
+Week 2	Implement MPT + Black-Litterman optimizer using PyPortfolioOpt. Connect to XGBoost views.	Working portfolio optimizer endpoint	
+Week 3	Build Holdings Analyzer: exposure engine, concentration check, beta computation, rupee rebalancing LP.	POST /analyze-portfolio API endpoint	
+Week 3	Build New Money Advisor: scenario generator (conservative/balanced/aggressive) + allocation output.	POST /new-investment API endpoint	
+Week 4	Adaptive questionnaire: multi-stage React form, scoring logic, risk profile storage in PostgreSQL.	Working onboarding flow, risk profile in DB	
+
+Week	Task	Deliverable	
+Week 5	Train LSTM model on all assets. Implement ensemble with XGBoost. Deploy to ML microservice.	Ensemble model, inference API < 500ms	
+Week 5	Implement GMM regime detection. Add regime-conditional allocation logic.	Market regime classifier, regime-aware optimizer	
+Week 6	Build Next.js frontend: dashboard, portfolio input, holdings analyzer, new money advisor pages.	Core frontend with API integration	
+Week 6	SHAP integration for XGBoost. NLG pipeline: SHAP values → LLM → English/Hindi explanation.	Explainable AI on all recommendations	
+Week 7	Implement Monte Carlo crash simulation. Historical scenario replay (2008, 2020, 2022).	POST /stress-test endpoint, visualization	
+Week 7	Daily drift detection Celery job. Push notification via Firebase Cloud Messaging (free).	Automated daily portfolio checks, notifications	
+Week 8	Free vs Paid tier enforcement (feature flags in DB). Stripe/Razorpay payment integration.	Working subscription system	
+
+Week	Task	Deliverable	
+Week 9	Vapi.ai + Twilio integration. Design conversation flows. Tool calling to existing FastAPI endpoints.	Working voice agent — web + phone	
+Week 9	Multilingual support: Hindi detection, Hindi TTS voice. Test Hinglish handling.	Hindi voice support	
+Week 10	Paper trading engine: simulated broker, virtual wallet, P&L tracker.	Fully working paper trading sandbox	
+Week 10	Angel One SmartAPI integration for live trading (Paid tier). Risk controls + circuit breakers.	Live algo trading (for validated users)	
+Week 11	FinBERT sentiment pipeline: news + Reddit → sentiment scores → added to ML features.	Sentiment-enhanced ML predictions	
+Week 11	GCN correlation model for sector contagion risk. Integrate into holdings analyzer.	Sector contagion risk alerts	
+Week 12	Full QA, backtesting all strategies on 2022-2024 data. Security audit (OWASP). Performance optimization.	Production-ready MVP	
+
+9.  MODEL TRAINING GUIDE	
+
+Feature Category	Features	
+Price-derived (Technical)	RSI(14), MACD(12,26,9), Bollinger Band position, ATR, OBV, Williams %R, Stochastic, ADX, Ichimoku signals	
+Fundamental	PE ratio, PB ratio, Debt/Equity, ROE, Promoter holding %, FII holding %, Dividend yield	
+Macro	Repo rate, CPI, USD/INR, 10Y G-Sec yield, India VIX, FII net flows, DII net flows	
+Market Microstructure	Delivery volume %, Market cap tier, 52-week high/low distance	
+Sentiment	FinBERT news score, Reddit mention count, Google Trends index	
+Cross-sectional	Sector rank by momentum, Relative strength vs Nifty50, Sector FII flow	
+
+10.  SECURITY, COMPLIANCE & ETHICS	
+
+11.  ESTIMATED COST TO BUILD & OPERATE (MVP)	
+
+Item	Cost Estimate	
+Google Colab Pro (GPU for model training)	₹1,000/month × 3 = ₹3,000	
+Railway.app / Render.com hosting (backend)	Free tier sufficient for MVP (< 500 users)	
+Supabase (Auth + DB)	Free tier: 500MB DB, 50,000 MAU — sufficient for hackathon/MVP	
+Vapi.ai Voice (1,000 mins free/month)	Free for MVP phase	
+Twilio phone number	~₹1,000/month for Indian number + call costs	
+Domain + SSL	₹800/year (Namecheap) + Cloudflare free SSL	
+Total MVP Cost	~₹6,000–8,000 for first 3 months	
+
+12.  IMMEDIATE NEXT STEPS — START TODAY	
+
