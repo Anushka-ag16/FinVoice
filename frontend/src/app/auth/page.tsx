@@ -24,8 +24,6 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        // In a real scenario we'd call apiLogin here, but backend uses JWT based auth which currently uses email as token.
-        // I will mock this by setting token = email.
         setLogin(email, {
           id: "1",
           email,
@@ -34,13 +32,11 @@ export default function AuthPage() {
         });
         router.push("/onboarding");
       } else {
-        // Register Real Call
         const response: any = await apiRegister({
           email,
           full_name: fullName,
         });
         
-        // Use returned user
         setLogin(email, {
           id: response.id || "2",
           email: response.email,
@@ -57,32 +53,30 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-navy flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background elements */}
-      <div className="absolute top-[20%] left-[50%] w-[800px] h-[800px] bg-brand-glow blur-[120px] rounded-full -translate-x-1/2 opacity-50 pointer-events-none" />
-
-      <div className="w-full max-w-md relative z-10">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
               <Activity className="w-5 h-5 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white tracking-tight">FinVoice</span>
+            <span className="text-2xl font-bold text-slate-900 tracking-tight">FinVoice</span>
           </div>
         </div>
 
-        <div className="bg-slate-800/80 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl">
-          <h2 className="text-2xl font-bold text-white mb-2 text-center">
+        <div className="bg-white border border-slate-200 p-8 rounded-2xl shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">
             {isLogin ? "Welcome Back" : "Create Account"}
           </h2>
-          <p className="text-text-secondary text-sm mb-6 text-center">
+          <p className="text-slate-500 text-sm mb-6 text-center">
             {isLogin 
               ? "Enter your details to access your dashboard" 
               : "Sign up to start your AI-powered investment journey"}
           </p>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-xl text-sm mb-6 text-center">
+            <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl text-sm mb-6 text-center">
               {error}
             </div>
           )}
@@ -90,38 +84,38 @@ export default function AuthPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Full Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
                 <input 
                   type="text" 
                   required={!isLogin}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                   placeholder="John Doe"
                 />
               </div>
             )}
             
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Email Address</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email Address</label>
               <input 
                 type="email" 
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 placeholder="you@example.com"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Password</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
               <input 
                 type="password" 
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                 placeholder="••••••••"
               />
             </div>
@@ -129,7 +123,7 @@ export default function AuthPage() {
             <button 
               type="submit" 
               disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 mt-4"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all shadow-sm disabled:opacity-50 mt-4"
             >
               {isLoading ? "Processing..." : (isLogin ? "Sign In" : "Sign Up")}
             </button>
@@ -141,12 +135,16 @@ export default function AuthPage() {
                 setIsLogin(!isLogin);
                 setError("");
               }}
-              className="text-text-secondary hover:text-white text-sm transition-colors"
+              className="text-slate-500 hover:text-slate-900 text-sm transition-colors"
             >
               {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
           </div>
         </div>
+
+        <p className="text-center text-xs text-slate-400 mt-6 max-w-sm mx-auto">
+          By continuing, you agree to our Terms of Service and acknowledge our Privacy Policy.
+        </p>
       </div>
     </div>
   );

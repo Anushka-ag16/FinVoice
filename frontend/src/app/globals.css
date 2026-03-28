@@ -4,28 +4,28 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* FinVoice Custom Colors */
-  --color-navy: #090E1A;
-  --color-slate-800: #111827;
-  --color-slate-700: #1A2235;
-  --color-border-subtle: #1E2D45;
+  /* FinVoice Light Mode Color System */
+  --color-navy: #F8FAFC;
+  --color-slate-800: #FFFFFF;
+  --color-slate-700: #F1F5F9;
+  --color-border-subtle: #E2E8F0;
 
-  --color-brand-blue: #3B82F6;
-  --color-brand-glow: rgba(59, 130, 246, 0.15);
-  --color-emerald-accent: #10B981;
-  --color-danger-accent: #EF4444;
-  --color-warning-accent: #F59E0B;
-  --color-gold-accent: #FBBF24;
+  --color-brand-blue: #2563EB;
+  --color-brand-glow: rgba(37, 99, 235, 0.06);
+  --color-emerald-accent: #059669;
+  --color-danger-accent: #DC2626;
+  --color-warning-accent: #D97706;
+  --color-gold-accent: #B45309;
 
-  --color-text-primary: #F1F5F9;
-  --color-text-secondary: #94A3B8;
-  --color-text-muted: #475569;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
 }
 
 @layer base {
   :root {
-    --background: #090E1A;
-    --foreground: #F1F5F9;
+    --background: #F8FAFC;
+    --foreground: #0F172A;
   }
 }
 
@@ -34,19 +34,17 @@ body {
   color: var(--foreground);
 }
 
-/* Number counter utility for smooth incrementing later */
+/* Number counter utility */
 @property --num {
   syntax: "<integer>";
   initial-value: 0;
   inherits: false;
 }
 
-/* Animated Gradient Text Utility */
+/* Accent text — solid brand color, no gradient */
 .text-gradient {
-  background: linear-gradient(to right, var(--color-brand-blue), var(--color-emerald-accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #2563EB;
+  -webkit-text-fill-color: #2563EB;
 }
 
 @keyframes shimmer {

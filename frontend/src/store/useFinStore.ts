@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 
-// Assuming schemas based on standard FastAPI response
 interface RiskProfile {
-  risk_level: string; // 'Conservative', 'Moderate', 'Aggressive'
+  risk_level: string;
   score?: number;
+  behavioral_bias?: string;
+  recommended_allocation?: Record<string, number>;
 }
 
 interface PortfolioItem {
@@ -14,7 +15,6 @@ interface PortfolioItem {
   current_price?: number;
   sector?: string;
   asset_class?: string;
-  currency?: string;
 }
 
 interface PortfolioAnalysis {
@@ -22,9 +22,9 @@ interface PortfolioAnalysis {
   total_pnl: number;
   total_pnl_percent: number;
   currency: string;
-  asset_allocation: Record<string, number>; // { 'Equity': 70, 'Debt': 30 }
+  asset_allocation: Record<string, number>;
   sector_allocation?: Record<string, number>;
-  risk_metrics?: any;
+  risk_metrics?: unknown;
 }
 
 interface User {
@@ -41,8 +41,6 @@ interface FinStoreState {
   portfolioHoldings: PortfolioItem[];
   portfolioAnalysis: PortfolioAnalysis | null;
   isLoggedIn: boolean;
-
-  // Actions
   login: (token: string, user: User) => void;
   logout: () => void;
   setRiskProfile: (profile: RiskProfile) => void;
@@ -56,7 +54,6 @@ export const useFinStore = create<FinStoreState>((set) => ({
   portfolioHoldings: [],
   portfolioAnalysis: null,
   isLoggedIn: false,
-
   login: (token, user) => set({ token, user, isLoggedIn: true }),
   logout: () => set({ token: null, user: null, riskProfile: null, portfolioHoldings: [], portfolioAnalysis: null, isLoggedIn: false }),
   setRiskProfile: (profile) => set({ riskProfile: profile }),
