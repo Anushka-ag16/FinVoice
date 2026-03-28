@@ -1,0 +1,22 @@
+artifact_path: file:D:/data/vs code/FinVoice/ml_service/mlruns/1/models/m-a7c9f0a5a9b143c7920c8326c300fe42/artifacts
+flavors:
+  catboost:
+    catboost_version: 1.2.10
+    code: null
+    data: model.cb
+    model_type: CatBoostRegressor
+    save_format: cbm
+  python_function:
+    data: model.cb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.catboost
+    python_version: 3.10.11
+mlflow_version: 3.10.1
+model_id: m-a7c9f0a5a9b143c7920c8326c300fe42
+model_size_bytes: 930072
+model_uuid: m-a7c9f0a5a9b143c7920c8326c300fe42
+prompts: null
+run_id: ad1fc025e30f4173b951d7aa0e28c2c8
+utc_time_created: '2026-03-28 18:17:09.979528'

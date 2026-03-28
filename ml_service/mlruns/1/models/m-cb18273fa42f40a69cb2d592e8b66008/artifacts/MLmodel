@@ -1,0 +1,22 @@
+artifact_path: file:D:/data/vs code/FinVoice/ml_service/mlruns/1/models/m-cb18273fa42f40a69cb2d592e8b66008/artifacts
+flavors:
+  python_function:
+    data: model.ubj
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.10.11
+  xgboost:
+    code: null
+    data: model.ubj
+    model_class: xgboost.sklearn.XGBRegressor
+    model_format: ubj
+    xgb_version: 3.2.0
+mlflow_version: 3.10.1
+model_id: m-cb18273fa42f40a69cb2d592e8b66008
+model_size_bytes: 127089
+model_uuid: m-cb18273fa42f40a69cb2d592e8b66008
+prompts: null
+run_id: b1e48a657d19458e841d1f6f52f41b2c
+utc_time_created: '2026-03-28 13:10:35.895940'

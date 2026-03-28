@@ -1,0 +1,10 @@
+experiment_name: nse-quant-pipeline
+artifact_location: ./mlartifacts
+models:
+  - regime_gmm
+  - xgboost_predictor
+  - catboost_predictor
+  - tft_predictor
+  - lstm_predictor
+  - stacking_ensemble
+  - sac_agent
