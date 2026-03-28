@@ -1,17 +1,20 @@
-# Environments
+# ═══════════════════════════════════════════
+#  FinVoice — .gitignore
+# ═══════════════════════════════════════════
+
+# ─── Environments & Secrets ───
 .env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Environment configurations
-*.env.*
+.env.*
 !.env.example
+.venv/
+venv/
+env/
+ENV/
+*.env.local
+*.env.production
+*.env.staging
 
-# Python
+# ─── Python ───
 __pycache__/
 *.py[cod]
 *$py.class
@@ -34,16 +37,43 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# ─── ML / AI Model Artifacts ───
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.bin
+mlruns/
+mlartifacts/
+AutogluonModels/
+autogluon_models/
+lightning_logs/
+wandb/
+*.mlmodel
+model_checkpoints/
 
-# Pytest / Coverage
+# ─── HuggingFace / Transformers Cache ───
+.cache/
+huggingface/
+
+# ─── Jupyter ───
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── Testing & Coverage ───
 .tox/
 .nox/
 .coverage
 .coverage.*
-.cache
+.cache/
 nosetests.xml
 coverage.xml
 *.cover
@@ -51,41 +81,56 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+htmlcov/
 
-# IDEs
+# ─── IDEs ───
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 .pyrightconfig.json
 pyrightconfig.json
+.pyre_configuration
+.pyre/
 
-# Databases / Data
+# ─── Databases & Data ───
 *.db
 *.sqlite3
 *.parquet
-/data/
-/data/raw/
-/data/processed/
-/data/models/
+*.csv
+!requirements*.txt
+data/
 finvoice_dev.db
+*.sql.bak
 
-# Node.js (Frontend)
+# ─── Node.js (Frontend) ───
 node_modules/
-dist/
-build/
 .next/
 out/
 .nuxt/
+.turbo/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-.DS_Store
+.eslintcache
+.vercel/
 
-# Mac
+# ─── OS Files ───
 .DS_Store
+Thumbs.db
+Desktop.ini
+*.lnk
 
-# Project specifics
-requirments.txt
+# ─── Logs ───
+*.log
+logs/
+
+# ─── Misc ───
 /docs/build/
+*.bak
+*.tmp
+*.temp
+.sass-cache/

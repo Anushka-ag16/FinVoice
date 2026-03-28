@@ -1,5 +1,6 @@
 """
 FinVoice — Stress Testing API (Monte Carlo + Historical Replay).
+Protected: Paid tier only + requires onboarding complete.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from database import get_db
-from models import User, Portfolio, UserTier
+from models import User, Portfolio
 from schemas.risk import (
     MonteCarloRequest, HistoricalScenarioRequest, StressTestResponse,
 )
 from services.crash_simulator import CrashSimulatorService
-from api.auth import get_current_user
+from api.auth import require_paid_tier, require_onboarding_complete
 
 router = APIRouter()
 
@@ -25,19 +26,13 @@ SEBI_DISCLAIMER = (
 @router.post("/monte-carlo")
 async def monte_carlo_simulation(
     request: MonteCarloRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_paid_tier),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Monte Carlo simulation: 10,000 portfolio paths.
-    Paid tier only.
+    Paid tier only — enforced via require_paid_tier dependency.
     """
-    if current_user.tier != UserTier.PAID:
-        raise HTTPException(
-            status_code=403,
-            detail="Crash simulation is available for paid tier users only. Upgrade to access this feature."
-        )
-
     result = await db.execute(
         select(Portfolio).where(Portfolio.id == request.portfolio_id, Portfolio.user_id == current_user.id)
     )
@@ -57,19 +52,13 @@ async def monte_carlo_simulation(
 @router.post("/historical")
 async def historical_scenario(
     request: HistoricalScenarioRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_paid_tier),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Historical scenario replay: Apply 2008/2020/2022 crash returns to user's portfolio.
-    Paid tier only.
+    Paid tier only — enforced via require_paid_tier dependency.
     """
-    if current_user.tier != UserTier.PAID:
-        raise HTTPException(
-            status_code=403,
-            detail="Historical scenario replay is available for paid tier users only."
-        )
-
     result = await db.execute(
         select(Portfolio).where(Portfolio.id == request.portfolio_id, Portfolio.user_id == current_user.id)
     )

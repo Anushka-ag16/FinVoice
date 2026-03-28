@@ -1,5 +1,6 @@
 """
 FinVoice — Investment API (New Money Advisor + Portfolio Optimizer).
+Protected: Requires onboarding. RL optimizer requires paid tier.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +12,7 @@ from models import User, Portfolio, UserTier
 from schemas.risk import NewInvestmentRequest, NewInvestmentResponse
 from services.new_money_advisor import NewMoneyAdvisorService
 from services.portfolio_optimizer import PortfolioOptimizerService
-from api.auth import get_current_user
+from api.auth import get_current_user, require_onboarding_complete
 
 router = APIRouter()
 
@@ -24,13 +25,13 @@ SEBI_DISCLAIMER = (
 @router.post("/allocate", response_model=NewInvestmentResponse)
 async def new_investment(
     request: NewInvestmentRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_onboarding_complete),
     db: AsyncSession = Depends(get_db),
 ):
     """
     New Money Advisor: 'I want to invest ₹X'.
     Returns 3 scenarios: Conservative / Balanced / Aggressive.
-    Free tier: basic splits. Paid tier: ML-optimized with scenario comparison.
+    Requires portfolio import (onboarding) first.
     """
     advisor = NewMoneyAdvisorService(db, current_user)
     result = await advisor.generate_scenarios(request)
@@ -41,13 +42,14 @@ async def new_investment(
 @router.post("/optimize")
 async def optimize_portfolio(
     portfolio_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_onboarding_complete),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Portfolio optimization.
     Free tier: MPT + Black-Litterman (static).
     Paid tier: RL Agent (PPO/SAC) — dynamic, adaptive.
+    Requires portfolio import first.
     """
     result = await db.execute(
         select(Portfolio).where(Portfolio.id == portfolio_id, Portfolio.user_id == current_user.id)

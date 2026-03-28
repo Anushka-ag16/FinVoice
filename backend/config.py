@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     angel_one_password: str = ""
     angel_one_totp_secret: str = ""
 
+    # ─── Trading ───
+    trading_enabled: bool = True                    # Master kill switch
+    paper_trading_initial_balance: float = 1000000.0  # ₹10 lakh
+    max_daily_trades: int = 20
+    max_single_order_pct: float = 25.0
+    daily_loss_limit_pct: float = 3.0
+
     # ─── Vapi.ai (Voice) ───
     vapi_api_key: str = ""
     vapi_assistant_id: str = ""
