@@ -116,6 +116,7 @@ from api.trading import router as trading_router
 from api.algorithms import router as algorithms_router
 from api.smart_invest import router as smart_invest_router
 from api.stop_orders import router as stop_orders_router
+from api.chat import router as chat_router
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(onboarding_router, prefix="/onboarding", tags=["Onboarding"])
@@ -127,6 +128,7 @@ app.include_router(trading_router, prefix="/trading", tags=["Trading"])
 app.include_router(algorithms_router, prefix="/algorithms", tags=["Trading Algorithms"])
 app.include_router(smart_invest_router, prefix="/smart-invest", tags=["Smart Investment"])
 app.include_router(stop_orders_router, prefix="/stops", tags=["Stop Loss & Take Profit"])
+app.include_router(chat_router, prefix="/advisor", tags=["AI Advisor"])
 
 
 @app.get("/", tags=["Health"])

@@ -49,7 +49,7 @@ export default function LandingPage() {
           </Link>
           <Link 
             href="#features"
-            className="px-8 py-3.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold text-base transition-all"
+            className="px-8 py-3.5 rounded-xl border border-[#CBD5E1] text-[#334155] hover:bg-slate-50 font-semibold text-base transition-all"
           >
             See How It Works
           </Link>

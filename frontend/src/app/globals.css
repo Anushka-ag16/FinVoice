@@ -4,10 +4,8 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* FinVoice Light Mode Color System */
+  /* FinVoice Semantic Tokens */
   --color-navy: #F8FAFC;
-  --color-slate-800: #FFFFFF;
-  --color-slate-700: #F1F5F9;
   --color-border-subtle: #E2E8F0;
 
   --color-brand-blue: #2563EB;

@@ -16,6 +16,9 @@ export default function AdvisorPage() {
   const [input, setInput] = useState("");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isHindi, setIsHindi] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [callSuccess, setCallSuccess] = useState(false);
 
   const starters = [
     "How is my portfolio?",
@@ -40,15 +43,26 @@ export default function AdvisorPage() {
     }, 1500);
   };
 
+  const handleCall = () => {
+    if (!phoneNumber.trim()) return;
+    setCallSuccess(true);
+  };
+
+  const closeCallModal = () => {
+    setShowCallModal(false);
+    setPhoneNumber("");
+    setCallSuccess(false);
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] md:h-[calc(100vh-40px)] animate-in fade-in duration-500 relative bg-navy -mx-4 md:-mx-8 md:-mt-8 px-4 md:px-8 pt-4 md:pt-8 rounded-xl overflow-hidden">
       
       {/* Voice Active Overlay */}
       {isVoiceActive && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-navy/95 backdrop-blur-xl animate-in fade-in duration-300">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-xl animate-in fade-in duration-300">
           <button 
             onClick={() => setIsVoiceActive(false)}
-            className="absolute top-6 right-6 p-2 rounded-full bg-slate-800 text-text-secondary hover:text-white transition-colors"
+            className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -63,8 +77,8 @@ export default function AdvisorPage() {
             </div>
           </div>
           
-          <h2 className="text-3xl font-bold text-white mb-4 text-center">Listening...</h2>
-          <p className="text-text-secondary">Speak your financial question naturally</p>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4 text-center">Listening...</h2>
+          <p className="text-slate-500">Speak your financial question naturally</p>
 
           <div className="flex items-end gap-1 h-12 mt-12 w-48 justify-center">
              {[...Array(12)].map((_, i) => (
@@ -89,7 +103,7 @@ export default function AdvisorPage() {
             <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-navy" />
           </div>
           <div>
-            <h1 className="text-lg md:text-xl font-bold text-white leading-tight">FinVoice AI</h1>
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">FinVoice AI</h1>
             <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-accent">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -103,32 +117,84 @@ export default function AdvisorPage() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setIsHindi(!isHindi)}
-            className="px-3 py-1.5 rounded-full bg-slate-800 border border-border-subtle text-text-secondary text-xs font-bold hover:text-white transition-colors"
+            className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold hover:text-slate-900 transition-colors"
           >
             {isHindi ? "English" : "Switch to Hindi"}
           </button>
-          <button className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/30 text-green-500 flex items-center justify-center hover:bg-green-500/20 transition-colors">
+          <button
+            onClick={() => setShowCallModal(true)}
+            className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/30 text-green-600 flex items-center justify-center hover:bg-green-500/20 transition-colors"
+          >
             <Phone className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Call Modal */}
+        {showCallModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 w-full max-w-sm mx-4 animate-in zoom-in-95 duration-200">
+              {callSuccess ? (
+                <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                    <Phone className="w-8 h-8 text-green-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">Call Initiated!</h2>
+                  <p className="text-slate-500 text-sm">We're connecting you to a FinVoice advisor on <span className="font-semibold text-slate-700">{phoneNumber}</span>. You'll receive a call shortly.</p>
+                  <button
+                    onClick={closeCallModal}
+                    className="w-full mt-2 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-slate-900">Call an Advisor</h2>
+                    <button onClick={closeCallModal} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-slate-500 mb-5">Enter your phone number and a FinVoice advisor will call you within minutes.</p>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCall()}
+                    placeholder="+91 98765 43210"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm mb-4"
+                  />
+                  <button
+                    onClick={handleCall}
+                    disabled={!phoneNumber.trim()}
+                    className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Call Now
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Chat Area Scrollable */}
       <div className="flex-1 overflow-y-auto w-full max-w-3xl mx-auto py-6 flex flex-col gap-6 px-2 pr-4 scroll-smooth">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-slate-800 border border-border-subtle flex items-center justify-center mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mb-6">
               <Activity className="w-8 h-8 text-blue-500" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">How can I help you today?</h2>
-            <p className="text-text-secondary mb-10 text-center">Institutional-grade answers to all your portfolio questions.</p>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">How can I help you today?</h2>
+            <p className="text-slate-500 mb-10 text-center">Institutional-grade answers to all your portfolio questions.</p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
               {starters.map(s => (
                 <button 
                   key={s}
                   onClick={() => handleSend(s)}
-                  className="p-4 rounded-xl bg-slate-800 border border-border-subtle text-left text-sm font-medium text-text-secondary hover:text-white hover:border-blue-500/50 transition-colors"
+                  className="p-4 rounded-xl bg-white border border-slate-200 text-left text-sm font-medium text-slate-600 hover:text-slate-900 hover:border-blue-400 hover:bg-blue-50 transition-colors shadow-sm"
                 >
                   {s}
                 </button>
@@ -148,7 +214,7 @@ export default function AdvisorPage() {
                   "px-5 py-3.5 max-w-[85%] sm:max-w-[75%]",
                   msg.role === "user" 
                     ? "bg-blue-600 text-white rounded-2xl rounded-tr-sm" 
-                    : "bg-[#1A2235] text-text-primary rounded-2xl rounded-tl-sm border border-[#1E2D45] leading-relaxed shadow-sm"
+                    : "bg-white text-slate-800 rounded-2xl rounded-tl-sm border border-slate-200 leading-relaxed shadow-sm"
                 )}
               >
                 {msg.content}
@@ -163,7 +229,7 @@ export default function AdvisorPage() {
         <div className="relative flex items-center gap-2">
           <button 
             onClick={() => setIsVoiceActive(true)}
-            className="w-14 h-14 rounded-full bg-slate-800 border border-border-subtle flex items-center justify-center flex-shrink-0 text-text-secondary hover:text-white hover:border-blue-500 transition-colors"
+            className="w-14 h-14 rounded-full bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 text-slate-500 hover:text-blue-600 hover:border-blue-400 transition-colors shadow-sm"
           >
             <Mic className="w-6 h-6" />
           </button>
@@ -175,12 +241,12 @@ export default function AdvisorPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend(input)}
               placeholder="Ask anything about your portfolio..."
-              className="w-full pl-6 pr-14 h-14 rounded-full bg-slate-800 border border-border-subtle text-white focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full pl-6 pr-14 h-14 rounded-full bg-slate-100 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             />
             <button 
               onClick={() => handleSend(input)}
               disabled={!input.trim()}
-              className="absolute right-2 top-2 bottom-2 w-10 rounded-full flex items-center justify-center bg-blue-600 text-white disabled:opacity-50 disabled:bg-slate-700 transition-colors"
+              className="absolute right-2 top-2 bottom-2 w-10 rounded-full flex items-center justify-center bg-blue-600 text-white disabled:opacity-50 disabled:bg-slate-300 transition-colors"
             >
               <Send className="w-4 h-4 ml-0.5" />
             </button>
