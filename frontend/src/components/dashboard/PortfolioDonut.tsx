@@ -36,16 +36,16 @@ export function PortfolioDonut() {
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="text-sm text-text-secondary">Total Assets</span>
-        <span className="text-2xl font-bold text-white">₹4.83L</span>
+        <span className="text-sm text-slate-500">Total Assets</span>
+        <span className="text-2xl font-bold text-slate-900">₹4.83L</span>
       </div>
       
       <div className="flex flex-wrap justify-center gap-4 mt-6">
         {data.map((item) => (
           <div key={item.name} className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-            <span className="text-sm text-text-secondary">{item.name}</span>
-            <span className="text-sm font-medium text-white">{Math.round((item.value / 483200) * 100)}%</span>
+            <span className="text-sm text-slate-500">{item.name}</span>
+            <span className="text-sm font-medium text-slate-700">{Math.round((item.value / 483200) * 100)}%</span>
           </div>
         ))}
       </div>

@@ -171,25 +171,25 @@ export default function LandingPage() {
           </div>
 
           {/* Pro Tier */}
-          <div className="p-8 rounded-2xl bg-slate-900 border border-slate-900 flex flex-col hover:-translate-y-1 transition-transform relative">
+          <div className="p-8 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col hover:-translate-y-1 transition-transform relative">
             <div className="absolute top-0 right-8 -translate-y-1/2">
               <span className="px-3 py-1 bg-blue-600 text-white text-xs font-bold tracking-wider rounded-full uppercase">Most Popular</span>
             </div>
             
-            <h3 className="text-2xl font-bold text-white mb-2">Pro</h3>
+            <h3 className="text-2xl font-bold text-blue-900 mb-2">Pro</h3>
             <div className="flex items-end gap-1 mb-6">
-              <span className="text-4xl font-mono text-white font-bold">₹299</span>
-              <span className="text-slate-400 pb-1">/month</span>
+              <span className="text-4xl font-mono text-blue-900 font-bold">₹299</span>
+              <span className="text-blue-700 pb-1">/month</span>
             </div>
-            <p className="text-slate-400 mb-8 h-12">Advanced intelligence for serious wealth management.</p>
+            <p className="text-blue-800 mb-8 h-12">Advanced intelligence for serious wealth management.</p>
             
             <div className="space-y-4 mb-8 flex-1">
-              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-emerald-400" /> <span className="text-slate-200">Risk Assessment</span></div>
-              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-emerald-400" /> <span className="text-slate-200">Portfolio Analysis</span></div>
-              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-emerald-400" /> <span className="text-slate-200">Crash Simulation</span></div>
-              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-emerald-400" /> <span className="text-slate-200">Algo Trading</span></div>
-              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-emerald-400" /> <span className="text-slate-200">Voice Advisory</span></div>
-              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-emerald-400" /> <span className="text-slate-200">PDF Monthly Reports</span></div>
+              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-blue-600" /> <span className="text-blue-900">Risk Assessment</span></div>
+              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-blue-600" /> <span className="text-blue-900">Portfolio Analysis</span></div>
+              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-blue-600" /> <span className="text-blue-900">Crash Simulation</span></div>
+              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-blue-600" /> <span className="text-blue-900">Algo Trading</span></div>
+              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-blue-600" /> <span className="text-blue-900">Voice Advisory</span></div>
+              <div className="flex items-center gap-3"><Check className="w-5 h-5 text-blue-600" /> <span className="text-blue-900">PDF Monthly Reports</span></div>
             </div>
             
             <Link href="/pricing" className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-center transition-colors relative overflow-hidden group">

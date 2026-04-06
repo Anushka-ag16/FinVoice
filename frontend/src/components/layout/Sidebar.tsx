@@ -9,9 +9,7 @@ import {
   PlusCircle, 
   Activity, 
   Mic, 
-  TrendingUp, 
-  FileText, 
-  Settings 
+  TrendingUp 
 } from "lucide-react";
 
 const navItems = [
@@ -21,8 +19,6 @@ const navItems = [
   { name: "Stress Test", href: "/stress-test", icon: Activity },
   { name: "AI Advisor", href: "/advisor", icon: Mic },
   { name: "Trading", href: "/trading", icon: TrendingUp },
-  { name: "Reports", href: "/reports", icon: FileText },
-  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {

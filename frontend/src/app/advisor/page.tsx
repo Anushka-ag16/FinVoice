@@ -1,24 +1,190 @@
 "use client";
 
-import { useState } from "react";
-import { Mic, Phone, Send, Activity, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Mic, Phone, PhoneOff, Send, Activity, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// ─── Lightweight Markdown Renderer ───
+
+function renderMarkdown(text: string) {
+  if (!text) return null;
+
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  let listKey = 0;
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`list-${listKey++}`} className="list-disc list-inside space-y-1 my-2">
+          {listItems.map((item, i) => (
+            <li key={i} className="text-sm">{formatInline(item)}</li>
+          ))}
+        </ul>
+      );
+      listItems = [];
+    }
+  };
+
+  const formatInline = (line: string): React.ReactNode => {
+    const parts: React.ReactNode[] = [];
+    let remaining = line;
+    let partKey = 0;
+
+    while (remaining.length > 0) {
+      const boldMatch = remaining.match(/\*\*(.+?)\*\*|__(.+?)__/);
+      const codeMatch = remaining.match(/`([^`]+)`/);
+      const italicMatch = remaining.match(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/);
+
+      type MatchCandidate = { index: number; length: number; content: React.ReactNode };
+      let firstMatch: MatchCandidate | null = null;
+
+      if (boldMatch && boldMatch.index !== undefined) {
+        const candidate: MatchCandidate = { index: boldMatch.index, length: boldMatch[0].length, content: <strong key={`b-${partKey++}`} className="font-semibold text-slate-900">{boldMatch[1] || boldMatch[2]}</strong> };
+        if (!firstMatch || candidate.index < firstMatch.index) firstMatch = candidate;
+      }
+      if (codeMatch && codeMatch.index !== undefined) {
+        const candidate: MatchCandidate = { index: codeMatch.index, length: codeMatch[0].length, content: <code key={`c-${partKey++}`} className="px-1.5 py-0.5 rounded bg-slate-100 text-blue-700 text-xs font-mono">{codeMatch[1]}</code> };
+        if (!firstMatch || candidate.index < firstMatch.index) firstMatch = candidate;
+      }
+      if (!firstMatch && italicMatch && italicMatch.index !== undefined) {
+        const candidate: MatchCandidate = { index: italicMatch.index, length: italicMatch[0].length, content: <em key={`i-${partKey++}`} className="italic text-slate-600">{italicMatch[1] || italicMatch[2]}</em> };
+        if (!firstMatch || candidate.index < firstMatch.index) firstMatch = candidate;
+      }
+
+      if (firstMatch) {
+        if (firstMatch.index > 0) {
+          parts.push(remaining.slice(0, firstMatch.index));
+        }
+        parts.push(firstMatch.content);
+        remaining = remaining.slice(firstMatch.index + firstMatch.length);
+      } else {
+        parts.push(remaining);
+        break;
+      }
+    }
+
+    return parts.length === 1 ? parts[0] : <>{parts}</>;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.startsWith("### ")) {
+      flushList();
+      elements.push(<h4 key={i} className="text-sm font-bold text-slate-900 mt-3 mb-1">{formatInline(line.slice(4))}</h4>);
+    } else if (line.startsWith("## ")) {
+      flushList();
+      elements.push(<h3 key={i} className="text-base font-bold text-slate-900 mt-3 mb-1">{formatInline(line.slice(3))}</h3>);
+    } else if (line.startsWith("# ")) {
+      flushList();
+      elements.push(<h2 key={i} className="text-lg font-bold text-slate-900 mt-3 mb-1">{formatInline(line.slice(2))}</h2>);
+    }
+    else if (line.match(/^[\s]*[-*•]\s/)) {
+      const content = line.replace(/^[\s]*[-*•]\s/, "");
+      listItems.push(content);
+    }
+    else if (line.match(/^[\s]*\d+\.\s/)) {
+      const content = line.replace(/^[\s]*\d+\.\s/, "");
+      listItems.push(content);
+    }
+    else if (line.match(/^---+$/)) {
+      flushList();
+      elements.push(<hr key={i} className="border-slate-200 my-3" />);
+    }
+    else if (line.trim() === "") {
+      flushList();
+    }
+    else {
+      flushList();
+      elements.push(<p key={i} className="text-sm leading-relaxed my-1">{formatInline(line)}</p>);
+    }
+  }
+  flushList();
+
+  return <div className="prose-sm">{elements}</div>;
+}
+
+// ─── Types ───
 
 type Message = {
   id: string;
   role: "user" | "ai";
   content: string;
-  type?: "text" | "portfolio_card" | "alert_card";
 };
 
 export default function AdvisorPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isHindi, setIsHindi] = useState(false);
-  const [showCallModal, setShowCallModal] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  // Phone call popup state
+  const [showCallPopup, setShowCallPopup] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [callSuccess, setCallSuccess] = useState(false);
+  const [callStatus, setCallStatus] = useState<"idle" | "calling" | "success" | "error">("idle");
+  const [callMessage, setCallMessage] = useState("");
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // ─── Phone Call Handler ───
+  const handlePhoneCall = async () => {
+    if (!phoneNumber.trim()) return;
+    
+    setCallStatus("calling");
+    setCallMessage("");
+
+    try {
+      const res = await fetch("/api/vapi-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: phoneNumber.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setCallStatus("error");
+        setCallMessage(data.error || "Failed to initiate call");
+        return;
+      }
+
+      setCallStatus("success");
+      setCallMessage(data.message || "Call initiated! You'll receive a call shortly.");
+      
+      // Auto-close after 4 seconds on success
+      setTimeout(() => {
+        setShowCallPopup(false);
+        setCallStatus("idle");
+        setPhoneNumber("");
+        setCallMessage("");
+      }, 4000);
+    } catch (err) {
+      console.error("Call error:", err);
+      setCallStatus("error");
+      setCallMessage("Network error. Please try again.");
+    }
+  };
+
+  const openCallPopup = () => {
+    setShowCallPopup(true);
+    setCallStatus("idle");
+    setCallMessage("");
+  };
+
+  const closeCallPopup = () => {
+    if (callStatus !== "calling") {
+      setShowCallPopup(false);
+      setCallStatus("idle");
+      setPhoneNumber("");
+      setCallMessage("");
+    }
+  };
 
   const starters = [
     "How is my portfolio?",
@@ -27,70 +193,165 @@ export default function AdvisorPage() {
     "Why did you suggest gold?"
   ];
 
-  const handleSend = (text: string) => {
-    if (!text.trim()) return;
+  const handleSend = async (text: string) => {
+    if (!text.trim() || isStreaming) return;
     
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", content: text }]);
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
+    setMessages(prev => [...prev, userMsg]);
     setInput("");
+    setIsStreaming(true);
 
-    // Simulate AI typing and response
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        id: (Date.now() + 1).toString(), 
-        role: "ai", 
-        content: "I've analyzed your portfolio. It's performing well, up 2.6% this month. However, your equity exposure is slightly concentrated in RELIANCE." 
-      }]);
-    }, 1500);
-  };
+    const aiMsgId = (Date.now() + 1).toString();
+    setMessages(prev => [...prev, { id: aiMsgId, role: "ai", content: "" }]);
 
-  const handleCall = () => {
-    if (!phoneNumber.trim()) return;
-    setCallSuccess(true);
-  };
+    const history = messages.map(m => ({
+      role: m.role === "user" ? "user" : "assistant",
+      content: m.content,
+    }));
 
-  const closeCallModal = () => {
-    setShowCallModal(false);
-    setPhoneNumber("");
-    setCallSuccess(false);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, history }),
+      });
+
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error("No readable stream");
+
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.done) break;
+            if (payload.error) {
+              setMessages(prev =>
+                prev.map(m => m.id === aiMsgId ? { ...m, content: m.content + `\n\n⚠️ ${payload.error}` } : m)
+              );
+              break;
+            }
+            if (payload.token) {
+              setMessages(prev =>
+                prev.map(m => m.id === aiMsgId ? { ...m, content: m.content + payload.token } : m)
+              );
+            }
+          } catch { /* skip malformed lines */ }
+        }
+      }
+    } catch (err) {
+      console.warn("Backend unavailable, using fallback response", err);
+      const fallback = "I've analyzed your portfolio. It's performing well, up 2.6% this month. However, your equity exposure is slightly concentrated in RELIANCE. I'd recommend diversifying into FMCG or healthcare sectors to reduce concentration risk.";
+      for (let i = 0; i < fallback.length; i += 3) {
+        const chunk = fallback.slice(i, i + 3);
+        await new Promise(r => setTimeout(r, 20));
+        setMessages(prev =>
+          prev.map(m => m.id === aiMsgId ? { ...m, content: m.content + chunk } : m)
+        );
+      }
+    } finally {
+      setIsStreaming(false);
+    }
   };
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] md:h-[calc(100vh-40px)] animate-in fade-in duration-500 relative bg-navy -mx-4 md:-mx-8 md:-mt-8 px-4 md:px-8 pt-4 md:pt-8 rounded-xl overflow-hidden">
       
-      {/* Voice Active Overlay */}
-      {isVoiceActive && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <button 
-            onClick={() => setIsVoiceActive(false)}
-            className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          
-          <div className="w-32 h-32 mb-12 relative flex items-center justify-center">
-            {/* Pulsing rings */}
-            <div className="absolute inset-[-50%] bg-blue-500/20 rounded-full animate-[ping_2s_ease-out_infinite]" />
-            <div className="absolute inset-[-20%] bg-blue-500/30 rounded-full animate-[ping_1.5s_ease-out_infinite]" />
-            
-            <div className="relative z-10 w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.6)]">
-              <Mic className="w-10 h-10 text-white" />
+      {/* ─── Phone Call Popup Modal ─── */}
+      {showCallPopup && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-in zoom-in-95 duration-300">
+            {/* Header */}
+            <div className="p-6 pb-0 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <Phone className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Talk to FinVoice AI</h3>
+                  <p className="text-xs text-slate-500">Get a call from your AI advisor</p>
+                </div>
+              </div>
+              <button 
+                onClick={closeCallPopup}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          </div>
-          
-          <h2 className="text-3xl font-bold text-slate-900 mb-4 text-center">Listening...</h2>
-          <p className="text-slate-500">Speak your financial question naturally</p>
 
-          <div className="flex items-end gap-1 h-12 mt-12 w-48 justify-center">
-             {[...Array(12)].map((_, i) => (
-                <div 
-                  key={i} 
-                  className="w-2 bg-blue-500 rounded-full"
-                  style={{ 
-                    height: `${20 + Math.random() * 80}%`,
-                    animation: `pulse ${0.5 + Math.random() * 0.5}s ease-in-out infinite alternate`
-                  }} 
-                />
-             ))}
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              {callStatus === "success" ? (
+                <div className="text-center py-4 space-y-3 animate-in fade-in duration-300">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-green-100 flex items-center justify-center">
+                    <Phone className="w-8 h-8 text-green-600 animate-pulse" />
+                  </div>
+                  <h4 className="text-lg font-semibold text-green-700">Call Initiated!</h4>
+                  <p className="text-sm text-slate-500">{callMessage}</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Your Phone Number</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">+91</span>
+                      <input
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
+                        onKeyDown={(e) => e.key === "Enter" && phoneNumber.length === 10 && handlePhoneCall()}
+                        placeholder="98765 43210"
+                        disabled={callStatus === "calling"}
+                        className="w-full pl-14 pr-4 py-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-lg tracking-wider focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-colors disabled:opacity-60 placeholder:text-slate-300"
+                        autoFocus
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-2">We&apos;ll call you on this number with your AI financial advisor</p>
+                  </div>
+
+                  {callStatus === "error" && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700 animate-in fade-in duration-200">
+                      {callMessage}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handlePhoneCall}
+                    disabled={phoneNumber.length < 10 || callStatus === "calling"}
+                    className={cn(
+                      "w-full py-4 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2",
+                      phoneNumber.length >= 10 && callStatus !== "calling"
+                        ? "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20"
+                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    )}
+                  >
+                    {callStatus === "calling" ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Phone className="w-5 h-5" />
+                        Call Me Now
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -119,64 +380,15 @@ export default function AdvisorPage() {
             onClick={() => setIsHindi(!isHindi)}
             className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold hover:text-slate-900 transition-colors"
           >
-            {isHindi ? "English" : "Switch to Hindi"}
+            {isHindi ? "English" : "हिन्दी"}
           </button>
           <button
-            onClick={() => setShowCallModal(true)}
-            className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/30 text-green-600 flex items-center justify-center hover:bg-green-500/20 transition-colors"
+            onClick={openCallPopup}
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-colors bg-green-500/10 border border-green-500/30 text-green-600 hover:bg-green-500/20"
           >
             <Phone className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Call Modal */}
-        {showCallModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 w-full max-w-sm mx-4 animate-in zoom-in-95 duration-200">
-              {callSuccess ? (
-                <div className="flex flex-col items-center text-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-                    <Phone className="w-8 h-8 text-green-600" />
-                  </div>
-                  <h2 className="text-xl font-bold text-slate-900">Call Initiated!</h2>
-                  <p className="text-slate-500 text-sm">We're connecting you to a FinVoice advisor on <span className="font-semibold text-slate-700">{phoneNumber}</span>. You'll receive a call shortly.</p>
-                  <button
-                    onClick={closeCallModal}
-                    className="w-full mt-2 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors"
-                  >
-                    Done
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold text-slate-900">Call an Advisor</h2>
-                    <button onClick={closeCallModal} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <p className="text-sm text-slate-500 mb-5">Enter your phone number and a FinVoice advisor will call you within minutes.</p>
-                  <input
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCall()}
-                    placeholder="+91 98765 43210"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm mb-4"
-                  />
-                  <button
-                    onClick={handleCall}
-                    disabled={!phoneNumber.trim()}
-                    className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Phone className="w-4 h-4" />
-                    Call Now
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Chat Area Scrollable */}
@@ -211,27 +423,41 @@ export default function AdvisorPage() {
               )}
               <div 
                 className={cn(
-                  "px-5 py-3.5 max-w-[85%] sm:max-w-[75%]",
+                  "max-w-[85%] sm:max-w-[75%]",
                   msg.role === "user" 
-                    ? "bg-blue-600 text-white rounded-2xl rounded-tr-sm" 
-                    : "bg-white text-slate-800 rounded-2xl rounded-tl-sm border border-slate-200 leading-relaxed shadow-sm"
+                    ? "px-5 py-3.5 bg-blue-600 text-white rounded-2xl rounded-tr-sm" 
+                    : "px-5 py-3.5 bg-white text-slate-700 rounded-2xl rounded-tl-sm border border-slate-200 shadow-sm"
                 )}
               >
-                {msg.content}
+                {msg.role === "ai" ? (
+                  msg.content ? renderMarkdown(msg.content) : (
+                    <div className="flex items-center gap-2 text-slate-400 text-sm">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                      Thinking...
+                    </div>
+                  )
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           ))
         )}
+        <div ref={chatEndRef} />
       </div>
 
       {/* Bottom Input Area */}
       <div className="flex-none bg-navy pt-2 pb-6 shrink-0 z-10 w-full max-w-4xl mx-auto">
         <div className="relative flex items-center gap-2">
           <button 
-            onClick={() => setIsVoiceActive(true)}
-            className="w-14 h-14 rounded-full bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 text-slate-500 hover:text-blue-600 hover:border-blue-400 transition-colors shadow-sm"
+            onClick={openCallPopup}
+            className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors shadow-sm bg-white border border-slate-200 text-slate-500 hover:text-green-600 hover:border-green-400"
           >
-            <Mic className="w-6 h-6" />
+            <Phone className="w-6 h-6" />
           </button>
           
           <div className="relative flex-1">
@@ -240,12 +466,13 @@ export default function AdvisorPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend(input)}
-              placeholder="Ask anything about your portfolio..."
-              className="w-full pl-6 pr-14 h-14 rounded-full bg-slate-100 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              placeholder={isStreaming ? "AI is responding..." : "Ask anything about your portfolio..."}
+              disabled={isStreaming}
+              className="w-full pl-6 pr-14 h-14 rounded-full bg-slate-100 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-60"
             />
             <button 
               onClick={() => handleSend(input)}
-              disabled={!input.trim()}
+              disabled={!input.trim() || isStreaming}
               className="absolute right-2 top-2 bottom-2 w-10 rounded-full flex items-center justify-center bg-blue-600 text-white disabled:opacity-50 disabled:bg-slate-300 transition-colors"
             >
               <Send className="w-4 h-4 ml-0.5" />

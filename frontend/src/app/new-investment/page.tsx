@@ -1,9 +1,65 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Scale, Rocket, ChevronDown, Sparkles, Activity } from "lucide-react";
+import { Shield, Scale, Rocket, ChevronDown, Sparkles, Activity, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiAllocateInvestment } from "@/lib/api";
+import { useFinStore } from "@/store/useFinStore";
+
+type Allocation = {
+  asset: string;
+  pct: number;
+  amount: string;
+};
+
+type Plan = {
+  name: string;
+  tagline: string;
+  description: string;
+  allocations: Allocation[];
+  projected_return: string;
+  max_drawdown: string;
+  recommended: boolean;
+  explanation: string;
+};
+
+type DrivingFactor = {
+  factor: string;
+  impact: number;
+  direction: "positive" | "negative";
+};
+
+type InvestmentPlanData = {
+  plans: Plan[];
+  explanation_summary: string;
+  driving_factors: DrivingFactor[];
+};
+
+const PLAN_STYLES: Record<string, { icon: typeof Shield; iconBg: string; iconColor: string; btnActive: string; btnInactive: string; badge: string }> = {
+  Conservative: {
+    icon: Shield,
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-600",
+    btnActive: "bg-emerald-600 text-white",
+    btnInactive: "border border-emerald-500 text-emerald-600 hover:bg-emerald-50",
+    badge: "Safe Harbor",
+  },
+  Balanced: {
+    icon: Scale,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+    btnActive: "bg-blue-600 text-white",
+    btnInactive: "bg-blue-50 text-blue-600 hover:bg-blue-100",
+    badge: "Golden Mean",
+  },
+  Aggressive: {
+    icon: Rocket,
+    iconBg: "bg-purple-100",
+    iconColor: "text-purple-600",
+    btnActive: "bg-purple-600 text-white",
+    btnInactive: "border border-purple-500 text-purple-600 hover:bg-purple-50",
+    badge: "Moonshot",
+  },
+};
 
 export default function NewInvestmentPage() {
   const [amount, setAmount] = useState("1,00,000");
@@ -12,10 +68,12 @@ export default function NewInvestmentPage() {
   const [loss, setLoss] = useState(15);
   
   const [planGenerated, setPlanGenerated] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState("Balanced");
+  const [selectedPlan, setSelectedPlan] = useState("");
   const [isExplanationOpen, setIsExplanationOpen] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [apiData, setApiData] = useState<any>(null);
+  const [planData, setPlanData] = useState<InvestmentPlanData | null>(null);
+
+  const riskProfile = useFinStore(s => s.riskProfile);
 
   const formatAmount = (val: string) => {
     const raw = val.replace(/\D/g, "");
@@ -26,18 +84,41 @@ export default function NewInvestmentPage() {
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      const payload = {
-        amount: parseFloat(amount.replace(/,/g, "")) || 100000,
-        goal: priority.toLowerCase(),
-        horizon_years: parseInt(horizon.replace("Y", "")) || 3,
-        max_acceptable_loss_pct: loss
-      };
-      const result = await apiAllocateInvestment(payload);
-      setApiData(result);
+      const numericAmount = parseFloat(amount.replace(/,/g, "")) || 100000;
+
+      const res = await fetch("/api/investment-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: numericAmount.toLocaleString('en-IN'),
+          horizon,
+          priority,
+          loss,
+          riskProfile: riskProfile ? {
+            risk_level: riskProfile.risk_level,
+            score: riskProfile.score,
+            behavioral_bias: riskProfile.behavioral_bias,
+            recommended_allocation: riskProfile.recommended_allocation,
+          } : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `API error ${res.status}`);
+      }
+
+      const data: InvestmentPlanData = await res.json();
+      setPlanData(data);
+      
+      // Auto-select the recommended plan
+      const recommended = data.plans.find(p => p.recommended);
+      setSelectedPlan(recommended?.name || data.plans[1]?.name || "Balanced");
+      
       setPlanGenerated(true);
     } catch (err) {
-      console.error(err);
-      alert("Failed to generate plan.");
+      console.error("Failed to generate plan:", err);
+      alert("Failed to generate plan. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -51,6 +132,19 @@ export default function NewInvestmentPage() {
         <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm sticky top-24">
           <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-6">Investment Parameters</h2>
           
+          {riskProfile && (
+            <div className="mb-6 p-3 rounded-xl bg-blue-50 border border-blue-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Activity className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">Risk Profile Linked</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Score: <strong>{riskProfile.score}/100</strong> · Type: <strong className="capitalize">{riskProfile.risk_level}</strong>
+                {riskProfile.behavioral_bias && <> · Bias: <strong className="capitalize">{riskProfile.behavioral_bias.replace('_', ' ')}</strong></>}
+              </p>
+            </div>
+          )}
+
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">How much do you want to invest?</label>
@@ -132,7 +226,7 @@ export default function NewInvestmentPage() {
 
       {/* Right Panel - Scenario Cards */}
       <div className="w-full lg:w-2/3 flex flex-col gap-6">
-        {!planGenerated ? (
+        {!planGenerated || !planData ? (
           <div className="h-full min-h-[400px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 text-slate-400">
             <Sparkles className="w-8 h-8 mb-4 opacity-50" />
             <p>Set your parameters and generate an AI-optimized plan</p>
@@ -140,123 +234,77 @@ export default function NewInvestmentPage() {
         ) : (
           <>
             <div className="grid md:grid-cols-3 gap-4">
-              {/* Conservative */}
-              <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col transition-all hover:-translate-y-1">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600">
-                    <Shield className="w-5 h-5" />
+              {planData.plans.map((plan) => {
+                const style = PLAN_STYLES[plan.name] || PLAN_STYLES.Balanced;
+                const IconComponent = style.icon;
+                const isSelected = selectedPlan === plan.name;
+                const isRecommended = plan.recommended;
+
+                return (
+                  <div 
+                    key={plan.name}
+                    className={cn(
+                      "p-5 rounded-2xl bg-white flex flex-col transition-all",
+                      isRecommended 
+                        ? "border-2 border-blue-500 relative shadow-md transform scale-105 z-10" 
+                        : "border border-slate-200 shadow-sm hover:-translate-y-1"
+                    )}
+                  >
+                    {isRecommended && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-blue-600 text-white text-[10px] font-bold tracking-widest uppercase rounded-full shadow-lg">
+                        Recommended
+                      </div>
+                    )}
+                    <div className={cn("flex justify-between items-start mb-4", isRecommended && "mt-2")}>
+                      <div className={cn("p-2 rounded-lg", style.iconBg, style.iconColor)}>
+                        <IconComponent className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {plan.tagline || style.badge}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 mb-1">{plan.name}</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed mb-6 h-8">{plan.description}</p>
+
+                    <div className="space-y-2 text-xs font-mono mb-6 flex-1">
+                      {plan.allocations.map((alloc) => (
+                        <div key={alloc.asset} className="flex justify-between">
+                          <span className="text-slate-500">{alloc.asset}</span>
+                          <span className="text-slate-900">
+                            {alloc.pct}% <span className="text-slate-400">{alloc.amount}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className={cn(
+                      "p-3 rounded-xl mb-4 border",
+                      isRecommended ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-200"
+                    )}>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1.5">Projected Returns</div>
+                      <div className="flex justify-between tracking-tight">
+                        <span className="text-emerald-accent font-medium text-sm">{plan.projected_return}</span>
+                        <span className={cn(
+                          "text-sm",
+                          plan.max_drawdown.includes("-") ? "text-danger-accent" : "text-slate-500"
+                        )}>
+                          max {plan.max_drawdown}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => setSelectedPlan(plan.name)}
+                      className={cn(
+                        "w-full py-2.5 rounded-xl font-medium text-sm transition-colors",
+                        isSelected ? style.btnActive : style.btnInactive
+                      )}
+                    >
+                      {isSelected ? "Selected" : "Select Plan"}
+                    </button>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Safe Harbor</span>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Conservative</h3>
-                <p className="text-xs text-slate-500 leading-relaxed mb-6 h-8">Preserve capital with steady yields.</p>
-                
-                <div className="w-20 h-20 rounded-full border-4 border-slate-200 mx-auto mb-6 relative">
-                  <div className="absolute inset-0 rounded-full border-4 border-emerald-500" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0)', transform: 'rotate(25deg)' }} />
-                  <div className="absolute inset-0 rounded-full border-4 border-gold-accent" style={{ clipPath: 'polygon(50% 50%, 100% 0, 100% 50%)' }} />
-                </div>
-
-                <div className="space-y-2 text-xs font-mono mb-6 flex-1">
-                  <div className="flex justify-between"><span className="text-slate-500">Bonds</span><span className="text-slate-900">70% <span className="text-slate-400">₹70K</span></span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Gold</span><span className="text-slate-900">20% <span className="text-slate-400">₹20K</span></span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Equity</span><span className="text-slate-900">10% <span className="text-slate-400">₹10K</span></span></div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 mb-4 border border-slate-200">
-                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1.5">Projected Returns</div>
-                  <div className="flex justify-between tracking-tight">
-                    <span className="text-emerald-accent font-medium text-sm">₹1.06L</span>
-                    <span className="text-slate-500 text-sm">max -4%</span>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setSelectedPlan("Conservative")}
-                  className={cn("w-full py-2.5 rounded-xl font-medium text-sm transition-colors", selectedPlan === "Conservative" ? "bg-emerald-600 text-white" : "border border-emerald-500 text-emerald-600 hover:bg-emerald-50")}
-                >
-                  {selectedPlan === "Conservative" ? "Selected" : "Select Plan"}
-                </button>
-              </div>
-
-              {/* Balanced */}
-              <div className="p-5 rounded-2xl bg-white border-2 border-blue-500 relative flex flex-col shadow-md transform scale-105 z-10 transition-all">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-blue-600 text-white text-[10px] font-bold tracking-widest uppercase rounded-full shadow-lg">
-                  Recommended
-                </div>
-                <div className="flex justify-between items-start mb-4 mt-2">
-                  <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
-                    <Scale className="w-5 h-5" />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Golden Mean</span>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Balanced</h3>
-                <p className="text-xs text-slate-500 leading-relaxed mb-6 h-8">Optimized risk-reward ratio.</p>
-
-                <div className="w-20 h-20 rounded-full border-4 border-slate-200 mx-auto mb-6 relative">
-                  <div className="absolute inset-0 rounded-full border-4 border-blue-500" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 50%, 0 0)' }} />
-                  <div className="absolute inset-0 rounded-full border-4 border-emerald-500" style={{ clipPath: 'polygon(50% 50%, 100% 50%, 100% 100%)' }} />
-                  <div className="absolute inset-0 rounded-full border-4 border-slate-400" style={{ clipPath: 'polygon(0 50%, 50% 50%, 0 100%)' }} />
-                </div>
-
-                <div className="space-y-2 text-xs font-mono mb-6 flex-1">
-                  <div className="flex justify-between"><span className="text-slate-500">Equity</span><span className="text-slate-900">55% <span className="text-slate-400">₹55K</span></span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Debt</span><span className="text-slate-900">35% <span className="text-slate-400">₹35K</span></span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Cash</span><span className="text-slate-900">10% <span className="text-slate-400">₹10K</span></span></div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-blue-50 mb-4 border border-blue-200">
-                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1.5">Projected Returns</div>
-                  <div className="flex justify-between tracking-tight">
-                    <span className="text-emerald-accent font-medium text-sm">₹1.18L</span>
-                    <span className="text-slate-500 text-sm">max -11%</span>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setSelectedPlan("Balanced")}
-                  className={cn("w-full py-2.5 rounded-xl font-medium text-sm transition-colors", selectedPlan === "Balanced" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600 hover:bg-blue-100")}
-                >
-                  {selectedPlan === "Balanced" ? "Selected" : "Select Plan"}
-                </button>
-              </div>
-
-              {/* Aggressive */}
-              <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col transition-all hover:-translate-y-1">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
-                    <Rocket className="w-5 h-5" />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Moonshot</span>
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Aggressive</h3>
-                <p className="text-xs text-slate-500 leading-relaxed mb-6 h-8">Maximum exposure for high growth.</p>
-
-                <div className="w-20 h-20 rounded-full border-4 border-slate-200 mx-auto mb-6 relative">
-                  <div className="absolute inset-0 rounded-full border-4 border-purple-500" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 80%, 0 100%, 0 0)' }} />
-                  <div className="absolute inset-0 rounded-full border-4 border-blue-500" style={{ clipPath: 'polygon(0 80%, 100% 80%, 100% 100%, 0 100%)' }} />
-                </div>
-
-                <div className="space-y-2 text-xs font-mono mb-6 flex-1">
-                  <div className="flex justify-between"><span className="text-slate-500">Sm. Cap</span><span className="text-slate-900">40% <span className="text-slate-400">₹40K</span></span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Lg. Cap</span><span className="text-slate-900">45% <span className="text-slate-400">₹45K</span></span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Crypto</span><span className="text-slate-900">15% <span className="text-slate-400">₹15K</span></span></div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 mb-4 border border-slate-200">
-                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1.5">Projected Returns</div>
-                  <div className="flex justify-between tracking-tight">
-                    <span className="text-emerald-accent font-medium text-sm">₹1.32L</span>
-                    <span className="text-danger-accent text-sm">max -28%</span>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setSelectedPlan("Aggressive")}
-                  className={cn("w-full py-2.5 rounded-xl font-medium text-sm transition-colors", selectedPlan === "Aggressive" ? "bg-purple-600 text-white" : "border border-purple-500 text-purple-600 hover:bg-purple-50")}
-                >
-                  {selectedPlan === "Aggressive" ? "Selected" : "Select Plan"}
-                </button>
-              </div>
+                );
+              })}
             </div>
 
             {/* Explanation Section */}
@@ -275,39 +323,49 @@ export default function NewInvestmentPage() {
               {isExplanationOpen && (
                 <div className="p-5 pt-0 border-t border-blue-200 animate-in slide-in-from-top-2 duration-300">
                   <p className="text-sm text-slate-700 leading-relaxed mb-6">
-                    Based on your <strong className="text-slate-900">3-year horizon</strong> and <strong className="text-slate-900">15% loss tolerance</strong>, our AI model prioritized the <em className="text-blue-700 font-medium">Balanced Engine</em>. We've overweight Equity slightly due to favorable macro-indicators in the energy and tech sectors, while maintaining a Debt buffer to hedge against short-term volatility.
+                    {planData.explanation_summary}
                   </p>
                   
-                  <div className="border-t border-blue-200 pt-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex justify-between mb-4">
-                      <span>Driving Factors (SHAP Analysis)</span>
-                      <span>Live Impact Score</span>
-                    </h4>
-                    
-                    <div className="space-y-3 font-mono text-xs">
-                      <div className="flex items-center gap-4">
-                        <span className="w-20 text-slate-500">Horizon</span>
-                        <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div className="w-3/4 h-full bg-blue-500 rounded-full" />
-                        </div>
-                        <span className="w-12 text-right text-blue-600 font-bold">+0.45</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="w-20 text-slate-500">Loss Tol.</span>
-                        <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div className="w-1/2 h-full bg-blue-400 rounded-full" />
-                        </div>
-                        <span className="w-12 text-right text-blue-600 font-bold">+0.30</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="w-20 text-slate-500">Market Vol.</span>
-                        <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden flex justify-end">
-                          <div className="w-1/4 h-full bg-danger-accent rounded-full" />
-                        </div>
-                        <span className="w-12 text-right text-danger-accent font-bold">-0.15</span>
+                  {planData.driving_factors && planData.driving_factors.length > 0 && (
+                    <div className="border-t border-blue-200 pt-4">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex justify-between mb-4">
+                        <span>Driving Factors (AI Analysis)</span>
+                        <span>Impact Score</span>
+                      </h4>
+                      
+                      <div className="space-y-3 font-mono text-xs">
+                        {planData.driving_factors.map((factor) => (
+                          <div key={factor.factor} className="flex items-center gap-4">
+                            <span className="w-24 text-slate-500 flex items-center gap-1">
+                              {factor.direction === "positive" 
+                                ? <TrendingUp className="w-3 h-3 text-blue-500" /> 
+                                : <TrendingDown className="w-3 h-3 text-red-500" />
+                              }
+                              {factor.factor}
+                            </span>
+                            <div className={cn(
+                              "flex-1 h-2 bg-slate-200 rounded-full overflow-hidden",
+                              factor.direction === "negative" && "flex justify-end"
+                            )}>
+                              <div 
+                                className={cn(
+                                  "h-full rounded-full",
+                                  factor.direction === "positive" ? "bg-blue-500" : "bg-danger-accent"
+                                )}
+                                style={{ width: `${Math.abs(factor.impact) * 100}%` }}
+                              />
+                            </div>
+                            <span className={cn(
+                              "w-12 text-right font-bold",
+                              factor.direction === "positive" ? "text-blue-600" : "text-danger-accent"
+                            )}>
+                              {factor.direction === "positive" ? "+" : "-"}{factor.impact.toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

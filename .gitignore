@@ -13,6 +13,7 @@ ENV/
 *.env.local
 *.env.production
 *.env.staging
+.env.example
 
 # ─── Python ───
 __pycache__/
