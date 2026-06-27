@@ -2,7 +2,7 @@
 
 > **AI-Powered Portfolio Management for Every Indian Investor**
 
-FinVoice is a three-tier AI-powered financial advisor that combines Modern Portfolio Theory, ML predictions, Reinforcement Learning, voice interaction, and Explainable AI to deliver institutional-grade portfolio management for India's 140M+ retail investors.
+FinVoice is a three-tier AI-powered financial advisor that integrates Modern Portfolio Theory, Machine Learning predictions, Reinforcement Learning, voice interaction, and Explainable AI to provide institutional-grade portfolio management for India's 140M+ retail investors.
 
 ## 🚀 Quick Start
 
